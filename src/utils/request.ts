@@ -39,15 +39,23 @@ service.interceptors.response.use(
   (response: AxiosResponse) => {
     const res = response.data
     
-    // 如果返回的状态码不是200，则视为错误
-    if (res.code !== undefined && res.code !== 200 && res.code !== 0) {
+    // ResultTable格式：code=0表示成功，其他表示失败
+    // AjaxResult格式：code=200或0表示成功
+    if (res.code !== undefined) {
       // token过期或无效
       if (res.code === 401) {
         localStorage.removeItem('token')
         localStorage.removeItem('userPhone')
         window.location.href = '/login'
+        return Promise.reject(new Error('未授权，请重新登录'))
       }
-      return Promise.reject(new Error(res.msg || '请求失败'))
+      
+      // ResultTable格式：code=0表示成功
+      // AjaxResult格式：code=200或0表示成功
+      // 这里不直接reject，让调用方处理
+      if (res.code !== 200 && res.code !== 0) {
+        return Promise.reject(new Error(res.msg || '请求失败'))
+      }
     }
     
     return res
@@ -70,7 +78,7 @@ service.interceptors.response.use(
       
       // 尝试从响应数据中获取错误信息
       if (data && data.msg) {
-        message = data.msg
+        message = data.ms
       } else if (data && data.message) {
         message = data.message
       } else {

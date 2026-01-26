@@ -30,6 +30,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '讨论论坛' }
       },
       {
+        path: 'forum/:id',
+        name: 'ForumDetail',
+        component: () => import('@/views/interaction/ForumDetail.vue'),
+        meta: { title: '讨论详情' }
+      },
+      {
         path: 'resources',
         name: 'Resources',
         component: () => import('@/views/interaction/Resources.vue'),

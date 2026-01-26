@@ -22,6 +22,10 @@ export interface TableParams {
   page?: number
   limit?: number
   searchText?: string
+  forumTitle?: string
+  posterId?: string
+  postTime?: string
+  categoryId?: string
 }
 
 // API响应类型
@@ -31,24 +35,44 @@ export interface ApiResponse<T = any> {
   data?: T
 }
 
-// 分页响应
+// 分页响应（ResultTable格式）
 export interface PageResponse<T> {
-  total: number
+  code: number
+  msg: string
+  count: number  // 后端返回的是count，不是total
   data: T[]
 }
 
 /**
  * 获取讨论论坛列表
  */
-export function getForumList(params: TableParams): Promise<ApiResponse<PageResponse<DiscussionForum>>> {
+export function getForumList(params: TableParams): Promise<PageResponse<DiscussionForum>> {
+  const requestParams: any = {
+    page: params.page || 1,
+    limit: params.limit || 10
+  }
+  
+  // 添加搜索条件
+  if (params.forumTitle) {
+    requestParams.forumTitle = params.forumTitle
+  }
+  if (params.posterId) {
+    requestParams.posterId = params.posterId
+  }
+  if (params.postTime) {
+    requestParams.postTime = params.postTime
+  }
+  if (params.categoryId) {
+    requestParams.categoryId = params.categoryId
+  }
+  if (params.searchText) {
+    requestParams.searchText = params.searchText
+  }
+  
   return request({
     url: '/DiscussionForumController/list',
     method: 'get',
-    params: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      searchText: params.searchText || ''
-    }
+    params: requestParams
   })
 }
 
@@ -102,5 +126,15 @@ export function deleteForum(ids: string): Promise<ApiResponse> {
     url: '/DiscussionForumController/remove',
     method: 'delete',
     params: { ids }
+  })
+}
+
+/**
+ * 点赞话题
+ */
+export function likeForum(id: number): Promise<ApiResponse> {
+  return request({
+    url: `/DiscussionForumController/like/${id}`,
+    method: 'post'
   })
 }

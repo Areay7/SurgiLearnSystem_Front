@@ -83,56 +83,110 @@
         </div>
       </div>
       
-      <div class="filter-bar">
-        <input type="text" placeholder="搜索话题..." class="search-input" v-model="searchKeyword" />
-        <select class="filter-select" v-model="selectedCategory">
-          <option value="">全部分类</option>
-          <option value="C001">护理技巧</option>
-          <option value="C002">案例分析</option>
-          <option value="C003">经验分享</option>
-        </select>
-      </div>
-      
-      <div class="topics-list" v-if="!loading">
-        <div v-if="topics.length === 0" class="empty-state">
-          <p>暂无话题，快来发布第一个话题吧！</p>
-        </div>
-        <div class="topic-item" v-for="(topic, index) in topics" :key="topic.id || index">
-          <div class="topic-checkbox">
-            <input
-              type="checkbox"
-              :value="index"
-              v-model="selectedTopics"
+      <!-- 搜索表单 -->
+      <div class="search-form">
+        <div class="form-row">
+          <div class="form-item">
+            <label>讨论标题：</label>
+            <input 
+              type="text" 
+              placeholder="请输入讨论标题" 
+              class="form-input" 
+              v-model="searchForm.forumTitle" 
             />
           </div>
-          <div class="topic-content-wrapper">
-            <div class="topic-header">
-              <h3 class="topic-title">
+          <div class="form-item">
+            <label>发帖者名称：</label>
+            <input 
+              type="text" 
+              placeholder="请输入发帖者名称" 
+              class="form-input" 
+              v-model="searchForm.posterId" 
+            />
+          </div>
+          <div class="form-item">
+            <label>发布时间：</label>
+            <input 
+              type="date" 
+              class="form-input" 
+              v-model="searchForm.postTime" 
+            />
+          </div>
+          <div class="form-actions">
+            <button class="btn-query" @click="handleSearch">查询</button>
+            <button class="btn-reset" @click="handleReset">重置</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 表格展示 -->
+      <div class="table-container" v-if="!loading">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th width="50">
+            <input
+              type="checkbox"
+                  @change="handleSelectAll"
+                  :checked="selectedTopics.length === topics.length && topics.length > 0"
+                />
+              </th>
+              <th width="60">序号</th>
+              <th width="100">操作</th>
+              <th width="100">讨论ID</th>
+              <th width="200">论坛标题</th>
+              <th width="120">发帖者ID</th>
+              <th width="180">发布时间</th>
+              <th>讨论内容</th>
+              <th width="150">回复数量</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="topics.length === 0">
+              <td colspan="9" class="empty-state">
+                <p>暂无数据</p>
+              </td>
+            </tr>
+            <tr v-for="(topic, index) in topics" :key="topic.id || index" class="table-row">
+              <td>
+                <input 
+                  type="checkbox" 
+                  :value="topic.id"
+              v-model="selectedTopics"
+            />
+              </td>
+              <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
+              <td>
+                <button class="btn-link" @click="handleEdit(topic)">编辑</button>
+                <button class="btn-link btn-danger" @click="handleDeleteSingle(topic)">删除</button>
+              </td>
+              <td>{{ topic.discussionId || topic.id || '-' }}</td>
+              <td>
                 <span v-if="topic.isSticky === 1" class="sticky-badge">置顶</span>
                 <span v-if="topic.isLocked === 1" class="locked-badge">锁定</span>
                 {{ topic.forumTitle }}
-              </h3>
-              <span class="topic-time">{{ formatTime(topic.postTime) }}</span>
-            </div>
-            <p class="topic-content">{{ topic.content }}</p>
-            <div class="topic-footer">
-              <span class="topic-author">发布者：{{ topic.posterId || '匿名' }}</span>
-              <span class="topic-category">{{ getCategoryName(topic.categoryId) }}</span>
-              <span class="topic-stats">回复：{{ topic.replyCount || 0 }} | 点赞：{{ topic.likeCount || 0 }}</span>
-            </div>
+              </td>
+              <td>{{ topic.posterId || '匿名' }}</td>
+              <td>{{ formatDateTime(topic.postTime) }}</td>
+              <td class="content-cell">{{ topic.content }}</td>
+              <td>
+                {{ topic.replyCount || 0 }}
+                <button class="btn-link btn-enter" @click="enterDiscussion(topic)">进入讨论</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
           </div>
-        </div>
-      </div>
       <div v-else class="loading-state">
         <p>加载中...</p>
-      </div>
+            </div>
       
       <div class="pagination">
         <button class="page-btn" @click="prevPage" :disabled="currentPage === 1 || loading">上一页</button>
         <span class="page-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页（共 {{ total }} 条）</span>
         <button class="page-btn" @click="nextPage" :disabled="currentPage === totalPages || loading">下一页</button>
-      </div>
-    </div>
+            </div>
+          </div>
     
     <!-- 发布新话题对话框 -->
     <div v-if="showPublishDialog" class="export-dialog-overlay" @click="showPublishDialog = false">
@@ -175,6 +229,133 @@
           <button class="btn-cancel" @click="showPublishDialog = false">取消</button>
           <button class="btn-confirm" @click="handlePublish">发布</button>
         </div>
+        </div>
+      </div>
+      
+    <!-- 编辑话题对话框 -->
+    <div v-if="showEditDialog" class="export-dialog-overlay" @click="showEditDialog = false">
+      <div class="export-dialog edit-dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>编辑话题</h3>
+          <button class="close-btn" @click="showEditDialog = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="edit-form-grid">
+            <div class="form-column">
+              <div class="form-group">
+                <label>讨论ID：</label>
+                <input
+                  type="text"
+                  :value="editForm.discussionId || editForm.id || '-'"
+                  class="form-input"
+                  disabled
+                />
+              </div>
+              <div class="form-group">
+                <label>论坛标题 *</label>
+                <input
+                  v-model="editForm.forumTitle"
+                  type="text"
+                  placeholder="请输入论坛标题"
+                  class="form-input"
+                  maxlength="300"
+                />
+              </div>
+              <div class="form-group">
+                <label>发帖者ID *</label>
+                <input
+                  v-model="editForm.posterId"
+                  type="text"
+                  placeholder="请输入发帖者ID"
+                  class="form-input"
+                />
+              </div>
+              <div class="form-group">
+                <label>发布时间 *</label>
+                <input
+                  v-model="editForm.postTime"
+                  type="datetime-local"
+                  class="form-input"
+                />
+              </div>
+              <div class="form-group">
+                <label>讨论内容 *</label>
+                <textarea
+                  v-model="editForm.content"
+                  placeholder="请输入讨论内容"
+                  class="form-textarea"
+                  rows="6"
+                ></textarea>
+              </div>
+              <div class="form-group">
+                <label>回复数量</label>
+                <input
+                  v-model.number="editForm.replyCount"
+                  type="number"
+                  min="0"
+                  class="form-input"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div class="form-column">
+              <div class="form-group">
+                <label>点赞数量</label>
+                <input
+                  v-model.number="editForm.likeCount"
+                  type="number"
+                  min="0"
+                  class="form-input"
+                  placeholder="0"
+                />
+              </div>
+              <div class="form-group">
+                <label>是否置顶</label>
+                <select v-model.number="editForm.isSticky" class="form-input">
+                  <option :value="0">否</option>
+                  <option :value="1">是</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>是否锁定</label>
+                <select v-model.number="editForm.isLocked" class="form-input">
+                  <option :value="0">否</option>
+                  <option :value="1">是</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>最后回复ID</label>
+                <input
+                  v-model="editForm.lastReplyId"
+                  type="text"
+                  placeholder="请输入最后回复ID"
+                  class="form-input"
+                />
+              </div>
+              <div class="form-group">
+                <label>最后回复时间</label>
+                <input
+                  v-model="editForm.lastReplyTime"
+                  type="datetime-local"
+                  class="form-input"
+                />
+              </div>
+              <div class="form-group">
+                <label>分类ID *</label>
+                <select v-model="editForm.categoryId" class="form-input">
+                  <option value="">请选择分类</option>
+                  <option value="C001">护理技巧</option>
+                  <option value="C002">案例分析</option>
+                  <option value="C003">经验分享</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showEditDialog = false">取消</button>
+          <button class="btn-confirm" @click="handleSaveEdit">保存</button>
+        </div>
       </div>
     </div>
     
@@ -208,14 +389,19 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { getForumList, getCategoryStats, addForum, deleteForum, type DiscussionForum } from '@/api/forum'
+import { getForumList, getCategoryStats, addForum, updateForum, deleteForum, type DiscussionForum } from '@/api/forum'
 import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
-// 搜索和筛选
-const searchKeyword = ref('')
-const selectedCategory = ref('')
+// 搜索表单
+const searchForm = ref({
+  forumTitle: '',
+  posterId: '',
+  postTime: ''
+})
 
 // 分页
 const currentPage = ref(1)
@@ -224,8 +410,8 @@ const totalPages = ref(1)
 const total = ref(0)
 const loading = ref(false)
 
-// 选中的话题
-const selectedTopics = ref<number[]>([])
+// 选中的话题（存储ID）
+const selectedTopics = ref<(number | string)[]>([])
 
 // 导出对话框
 const showExportDialog = ref(false)
@@ -239,6 +425,24 @@ const publishForm = ref<DiscussionForum>({
   content: '',
   categoryId: '',
   posterId: authStore.userPhone || ''
+})
+
+// 编辑话题对话框
+const showEditDialog = ref(false)
+const editForm = ref<DiscussionForum>({
+  id: undefined,
+  discussionId: undefined,
+  forumTitle: '',
+  posterId: '',
+  postTime: '',
+  content: '',
+  replyCount: 0,
+  likeCount: 0,
+  isSticky: 0,
+  isLocked: 0,
+  lastReplyId: '',
+  lastReplyTime: '',
+  categoryId: ''
 })
 
 // 导出字段配置
@@ -261,10 +465,10 @@ const exportFields = [
 const topics = ref<DiscussionForum[]>([])
 // 话题分类统计
 const categoryStats = ref<Record<string, number>>({
-  护理技巧: 0,
-  案例分析: 0,
-  经验分享: 0,
-  其他: 0
+    护理技巧: 0,
+    案例分析: 0,
+    经验分享: 0,
+    其他: 0
 })
 
 const totalTopics = computed(() => {
@@ -280,22 +484,33 @@ const loadForumList = async () => {
       limit: pageSize
     }
     
-    if (searchKeyword.value.trim()) {
-      params.searchText = searchKeyword.value.trim()
+    // 搜索条件
+    if (searchForm.value.forumTitle?.trim()) {
+      params.forumTitle = searchForm.value.forumTitle.trim()
     }
     
-    if (selectedCategory.value) {
-      params.categoryId = selectedCategory.value
+    if (searchForm.value.posterId?.trim()) {
+      params.posterId = searchForm.value.posterId.trim()
+    }
+    
+    if (searchForm.value.postTime) {
+      params.postTime = searchForm.value.postTime
     }
     
     const response = await getForumList(params)
     
+    console.log('论坛列表响应:', response)
+    
     if (response.code === 200 || response.code === 0) {
-      if (response.data) {
-        topics.value = response.data.data || []
-        total.value = response.data.total || 0
-        totalPages.value = Math.ceil(total.value / pageSize)
-      }
+      // 后端返回的是ResultTable格式：{ code, msg, count, data }
+      topics.value = (response.data || []) as DiscussionForum[]
+      total.value = response.count || 0
+      totalPages.value = Math.ceil(total.value / pageSize)
+      
+      console.log('加载的话题数量:', topics.value.length, '总数:', total.value)
+    } else {
+      console.error('获取列表失败:', response.msg)
+      alert('加载数据失败：' + (response.msg || '未知错误'))
     }
   } catch (error: any) {
     console.error('加载论坛列表失败:', error)
@@ -324,7 +539,7 @@ const loadCategoryStats = async () => {
   }
 }
 
-// 格式化时间
+// 格式化时间（相对时间）
 const formatTime = (dateStr?: string) => {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -340,6 +555,19 @@ const formatTime = (dateStr?: string) => {
   return '刚刚'
 }
 
+// 格式化日期时间（完整格式）
+const formatDateTime = (dateStr?: string) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 // 获取分类名称
 const getCategoryName = (categoryId?: string) => {
   const categoryMap: Record<string, string> = {
@@ -350,11 +578,174 @@ const getCategoryName = (categoryId?: string) => {
   return categoryMap[categoryId || ''] || '其他'
 }
 
-// 监听搜索和分类变化
-watch([searchKeyword, selectedCategory], () => {
+// 查询按钮
+const handleSearch = () => {
   currentPage.value = 1
   loadForumList()
-})
+}
+
+// 重置按钮
+const handleReset = () => {
+  searchForm.value = {
+    forumTitle: '',
+    posterId: '',
+    postTime: ''
+  }
+  currentPage.value = 1
+  loadForumList()
+}
+
+// 全选/取消全选
+const handleSelectAll = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.checked) {
+    selectedTopics.value = topics.value.map(t => t.id || t.discussionId).filter(Boolean) as (number | string)[]
+  } else {
+    selectedTopics.value = []
+  }
+}
+
+// 编辑单个话题
+const handleEdit = (topic: DiscussionForum) => {
+  // 将话题数据复制到编辑表单
+  editForm.value = {
+    id: topic.id,
+    discussionId: topic.discussionId,
+    forumTitle: topic.forumTitle || '',
+    posterId: topic.posterId || '',
+    postTime: formatDateTimeForInput(topic.postTime),
+    content: topic.content || '',
+    replyCount: topic.replyCount || 0,
+    likeCount: topic.likeCount || 0,
+    isSticky: topic.isSticky || 0,
+    isLocked: topic.isLocked || 0,
+    lastReplyId: topic.lastReplyId || '',
+    lastReplyTime: formatDateTimeForInput(topic.lastReplyTime),
+    categoryId: topic.categoryId || ''
+  }
+  showEditDialog.value = true
+}
+
+// 格式化日期时间为datetime-local格式
+const formatDateTimeForInput = (dateStr?: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+// 保存编辑
+const handleSaveEdit = async () => {
+  // 验证必填字段
+  if (!editForm.value.forumTitle?.trim()) {
+    alert('请输入论坛标题')
+    return
+  }
+  if (!editForm.value.posterId?.trim()) {
+    alert('请输入发帖者ID')
+    return
+  }
+  if (!editForm.value.postTime) {
+    alert('请选择发布时间')
+    return
+  }
+  if (!editForm.value.content?.trim()) {
+    alert('请输入讨论内容')
+    return
+  }
+  if (!editForm.value.categoryId) {
+    alert('请选择分类')
+    return
+  }
+  
+  try {
+    // 转换日期时间格式为后端需要的格式
+    const postTime = editForm.value.postTime ? convertDateTimeLocalToISO(editForm.value.postTime) : undefined
+    const lastReplyTime = editForm.value.lastReplyTime ? convertDateTimeLocalToISO(editForm.value.lastReplyTime) : undefined
+    
+    const updateData: DiscussionForum = {
+      id: editForm.value.id,
+      discussionId: editForm.value.discussionId,
+      forumTitle: editForm.value.forumTitle.trim(),
+      posterId: editForm.value.posterId.trim(),
+      postTime: postTime,
+      content: editForm.value.content.trim(),
+      replyCount: editForm.value.replyCount || 0,
+      likeCount: editForm.value.likeCount || 0,
+      isSticky: editForm.value.isSticky || 0,
+      isLocked: editForm.value.isLocked || 0,
+      lastReplyId: editForm.value.lastReplyId?.trim() || undefined,
+      lastReplyTime: lastReplyTime,
+      categoryId: editForm.value.categoryId
+    }
+    
+    const response = await updateForum(updateData)
+    
+    if (response.code === 200 || response.code === 0) {
+      alert('保存成功')
+      showEditDialog.value = false
+      loadForumList()
+      loadCategoryStats()
+    } else {
+      alert('保存失败：' + (response.msg || '未知错误'))
+    }
+  } catch (error: any) {
+    alert('保存失败：' + (error.message || '未知错误'))
+  }
+}
+
+// 将datetime-local格式转换为ISO格式
+const convertDateTimeLocalToISO = (dateTimeLocal: string) => {
+  if (!dateTimeLocal) return undefined
+  // datetime-local格式: YYYY-MM-DDTHH:mm
+  // 需要转换为: YYYY-MM-DD HH:mm:ss
+  const [datePart, timePart] = dateTimeLocal.split('T')
+  const time = timePart || '00:00'
+  return `${datePart} ${time}:00`
+}
+
+// 进入讨论
+const enterDiscussion = (topic: DiscussionForum) => {
+  const topicId = topic.id || topic.discussionId
+  if (topicId) {
+    router.push({
+      name: 'ForumDetail',
+      params: { id: topicId }
+    })
+  } else {
+    alert('无法获取话题ID')
+  }
+}
+
+// 删除单个话题
+const handleDeleteSingle = async (topic: DiscussionForum) => {
+  if (!confirm(`确定要删除话题"${topic.forumTitle}"吗？`)) {
+    return
+  }
+  
+  try {
+    const id = topic.id || topic.discussionId
+    if (!id) {
+      alert('无法获取话题ID')
+      return
+    }
+    const response = await deleteForum(String(id))
+    
+    if (response.code === 200 || response.code === 0) {
+      alert('删除成功')
+      loadForumList()
+      loadCategoryStats()
+    } else {
+      alert('删除失败：' + (response.msg || '未知错误'))
+    }
+  } catch (error: any) {
+    alert('删除失败：' + (error.message || '未知错误'))
+  }
+}
 
 // 页面加载时获取数据
 onMounted(() => {
@@ -445,7 +836,7 @@ const handlePublish = async () => {
   }
 }
 
-// 删除话题
+// 删除选中话题
 const handleDelete = async () => {
   if (selectedTopics.value.length === 0) {
     alert('请先选择要删除的话题')
@@ -457,7 +848,7 @@ const handleDelete = async () => {
   }
   
   try {
-    const ids = selectedTopics.value.map(index => topics.value[index]?.id).filter(Boolean).join(',')
+    const ids = selectedTopics.value.join(',')
     const response = await deleteForum(ids)
     
     if (response.code === 200 || response.code === 0) {
@@ -702,109 +1093,165 @@ const exportToCSV = (data: any[], fields: string[]) => {
   flex-shrink: 0;
 }
 
-.filter-bar {
+/* 搜索表单样式 */
+.search-form {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.form-item label {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.form-actions {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-left: auto;
 }
 
-.search-input {
-  flex: 1;
-  padding: 10px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+.btn-query {
+  padding: 10px 24px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 14px;
+  transition: all 0.25s ease;
+  font-weight: 400;
+  white-space: nowrap;
 }
 
-.filter-select {
-  padding: 10px 16px;
+.btn-query:hover {
+  background: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(91, 155, 213, 0.3);
+}
+
+.btn-reset {
+  padding: 10px 24px;
+  background: var(--card-bg);
+  color: var(--text-regular);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 8px;
+  cursor: pointer;
   font-size: 14px;
-  background: white;
+  transition: all 0.25s ease;
+  font-weight: 400;
+  white-space: nowrap;
 }
 
-.topics-list {
+.btn-reset:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(91, 155, 213, 0.05);
+  transform: translateY(-1px);
+}
+
+/* 表格样式 */
+.table-container {
   background: var(--card-bg);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
 }
 
-.topic-item {
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color);
-  transition: background 0.3s;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
 
-.topic-item:hover {
+.data-table thead {
   background: #f5f7fa;
 }
 
-.topic-item:last-child {
+.data-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-regular);
+}
+
+.data-table tbody tr.table-row:hover {
+  background: #f5f7fa;
+}
+
+.data-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.topic-checkbox {
-  padding-top: 2px;
-  flex-shrink: 0;
-}
-
-.topic-checkbox input[type="checkbox"] {
+.data-table input[type="checkbox"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
 }
 
-.topic-content-wrapper {
-  flex: 1;
+.content-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.topic-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.topic-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.topic-time {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.topic-content {
-  color: var(--text-regular);
-  line-height: 1.6;
-  margin-bottom: 12px;
-}
-
-.topic-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-secondary);
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.topic-category {
-  padding: 2px 8px;
-  background: #ecf5ff;
+.btn-link {
+  background: none;
+  border: none;
   color: var(--primary-color);
-  border-radius: 4px;
-  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 13px;
+  margin-right: 8px;
+  transition: all 0.2s;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.btn-link.btn-danger {
+  color: #f56c6c;
+}
+
+.btn-link.btn-danger:hover {
+  color: #f78989;
+}
+
+.btn-link.btn-enter {
+  margin-left: 8px;
+  color: var(--primary-color);
+  font-weight: 500;
 }
 
 .pagination {
@@ -867,6 +1314,11 @@ const exportToCSV = (data: any[], fields: string[]) => {
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.edit-dialog {
+  max-width: 1200px;
+  width: 95%;
 }
 
 .dialog-header {
@@ -1092,6 +1544,35 @@ const exportToCSV = (data: any[], fields: string[]) => {
 .form-textarea:focus {
   outline: none;
   border-color: var(--primary-color);
+}
+
+.form-input:disabled {
+  background: #f5f7fa;
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+/* 编辑表单两列布局 */
+.edit-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .edit-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .edit-dialog {
+    max-width: 600px;
+  }
 }
 </style>
 
