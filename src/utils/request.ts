@@ -37,6 +37,11 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse) => {
+    // 如果是文件下载（blob类型），直接返回
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+    
     const res = response.data
     
     // ResultTable格式：code=0表示成功，其他表示失败
