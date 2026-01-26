@@ -166,7 +166,7 @@
                 <span v-if="topic.isLocked === 1" class="locked-badge">锁定</span>
                 {{ topic.forumTitle }}
               </td>
-              <td>{{ topic.posterId || '匿名' }}</td>
+              <td>{{ getUserDisplayName(topic.posterId) }}</td>
               <td>{{ formatDateTime(topic.postTime) }}</td>
               <td class="content-cell">{{ topic.content }}</td>
               <td>
@@ -392,6 +392,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { getForumList, getCategoryStats, addForum, updateForum, deleteForum, type DiscussionForum } from '@/api/forum'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { batchUserInfo } from '@/api/auth'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -465,11 +466,13 @@ const exportFields = [
 const topics = ref<DiscussionForum[]>([])
 // 话题分类统计
 const categoryStats = ref<Record<string, number>>({
-    护理技巧: 0,
-    案例分析: 0,
-    经验分享: 0,
-    其他: 0
+  护理技巧: 0,
+  案例分析: 0,
+  经验分享: 0,
+  其他: 0
 })
+// 用户昵称映射表
+const userDisplayNames = ref<Record<string, string>>({})
 
 const totalTopics = computed(() => {
   return Object.values(categoryStats.value).reduce((sum, val) => sum + val, 0)
@@ -506,6 +509,9 @@ const loadForumList = async () => {
       topics.value = (response.data || []) as DiscussionForum[]
       total.value = response.count || 0
       totalPages.value = Math.ceil(total.value / pageSize)
+      
+      // 批量获取用户昵称
+      await loadUserDisplayNames()
       
       console.log('加载的话题数量:', topics.value.length, '总数:', total.value)
     } else {
@@ -576,6 +582,35 @@ const getCategoryName = (categoryId?: string) => {
     'C003': '经验分享'
   }
   return categoryMap[categoryId || ''] || '其他'
+}
+
+// 批量加载用户显示名称（昵称或ID）
+const loadUserDisplayNames = async () => {
+  // 收集所有需要查询的用户ID
+  const userIds = new Set<string>()
+  topics.value.forEach(topic => {
+    if (topic.posterId) {
+      userIds.add(topic.posterId)
+    }
+  })
+  
+  if (userIds.size === 0) return
+  
+  try {
+    const response = await batchUserInfo(Array.from(userIds))
+    if (response.code === 200 || response.code === 0 && response.data) {
+      // 更新用户显示名称映射表
+      Object.assign(userDisplayNames.value, response.data)
+    }
+  } catch (error: any) {
+    console.error('获取用户昵称失败:', error)
+  }
+}
+
+// 获取用户显示名称（优先昵称，否则ID）
+const getUserDisplayName = (userId?: string) => {
+  if (!userId) return '匿名'
+  return userDisplayNames.value[userId] || userId
 }
 
 // 查询按钮

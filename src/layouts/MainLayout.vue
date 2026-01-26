@@ -4,7 +4,8 @@
       <div class="header-content">
         <h1 class="logo">外科护理主管护师培训学习系统 V1.0</h1>
         <div class="user-info">
-          <span>欢迎，{{ currentUser }}</span>
+          <span>欢迎，{{ displayName }}</span>
+          <button @click="goToProfile" class="profile-btn">个人主页</button>
           <button @click="handleLogout" class="logout-btn">退出</button>
         </div>
       </div>
@@ -113,22 +114,38 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { getUserInfo } from '@/api/auth'
 
 const sidebarCollapsed = ref(false)
 const authStore = useAuthStore()
 const router = useRouter()
 
-const currentUser = computed(() => {
-  return authStore.userPhone || '管理员'
+const displayName = computed(() => {
+  return authStore.nickname || authStore.userPhone || '管理员'
 })
+
+const goToProfile = () => {
+  router.push('/profile')
+}
 
 const handleLogout = () => {
   authStore.logout()
   router.push('/login')
 }
+
+// 页面加载时获取用户信息
+onMounted(async () => {
+  if (authStore.isLoggedIn && authStore.userPhone) {
+    try {
+      await authStore.fetchUserInfo()
+    } catch (error) {
+      console.error('获取用户信息失败:', error)
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -170,6 +187,24 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.profile-btn {
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.25s ease;
+  font-weight: 400;
+}
+
+.profile-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
 }
 
 .logout-btn {

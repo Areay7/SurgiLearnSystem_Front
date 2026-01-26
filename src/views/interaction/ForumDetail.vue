@@ -19,7 +19,7 @@
             {{ topic.forumTitle }}
           </h2>
           <div class="topic-meta">
-            <span class="meta-item">发布者：{{ topic.posterId || '匿名' }}</span>
+            <span class="meta-item">发布者：{{ getUserDisplayName(topic.posterId) }}</span>
             <span class="meta-item">发布时间：{{ formatDateTime(topic.postTime) }}</span>
             <span class="meta-item">分类：{{ getCategoryName(topic.categoryId) }}</span>
             <span class="meta-item">回复数：{{ topic.replyCount || 0 }}</span>
@@ -59,7 +59,7 @@
             class="reply-item"
           >
             <div class="reply-header">
-              <span class="reply-author">{{ reply.replierId || '匿名' }}</span>
+              <span class="reply-author">{{ getUserDisplayName(reply.replierId) }}</span>
               <span class="reply-time">{{ formatDateTime(reply.replyTime) }}</span>
             </div>
             <div class="reply-content">{{ reply.content }}</div>
@@ -127,6 +127,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getForumDetail, likeForum } from '@/api/forum'
 import { getReplyList, addReply, likeReply as likeReplyApi, type ForumReply } from '@/api/reply'
 import { useAuthStore } from '@/stores/auth'
+import { batchUserInfo } from '@/api/auth'
 import type { DiscussionForum } from '@/api/forum'
 
 const route = useRoute()
@@ -137,6 +138,8 @@ const loading = ref(false)
 const topic = ref<DiscussionForum | null>(null)
 const replies = ref<ForumReply[]>([])
 const showReplyDialog = ref(false)
+// 用户昵称映射表
+const userDisplayNames = ref<Record<string, string>>({})
 
 // 分页
 const currentPage = ref(1)
@@ -163,6 +166,8 @@ const loadTopicDetail = async () => {
     const response = await getForumDetail(Number(topicId))
     if (response.code === 200 || response.code === 0) {
       topic.value = response.data as DiscussionForum
+      // 加载用户显示名称
+      await loadUserDisplayNames()
     } else {
       alert('加载话题失败：' + (response.msg || '未知错误'))
       router.push('/forum')
@@ -191,6 +196,9 @@ const loadReplies = async () => {
       replies.value = (response.data || []) as ForumReply[]
       total.value = response.count || 0
       totalPages.value = Math.ceil(total.value / pageSize)
+      
+      // 加载用户显示名称
+      await loadUserDisplayNames()
     }
   } catch (error: any) {
     console.error('加载回复列表失败:', error)
@@ -220,6 +228,42 @@ const getCategoryName = (categoryId?: string) => {
     'C003': '经验分享'
   }
   return categoryMap[categoryId || ''] || '其他'
+}
+
+// 批量加载用户显示名称（昵称或ID）
+const loadUserDisplayNames = async () => {
+  // 收集所有需要查询的用户ID
+  const userIds = new Set<string>()
+  
+  // 添加话题发布者
+  if (topic.value?.posterId) {
+    userIds.add(topic.value.posterId)
+  }
+  
+  // 添加所有回复者
+  replies.value.forEach(reply => {
+    if (reply.replierId) {
+      userIds.add(reply.replierId)
+    }
+  })
+  
+  if (userIds.size === 0) return
+  
+  try {
+    const response = await batchUserInfo(Array.from(userIds))
+    if (response.code === 200 || response.code === 0 && response.data) {
+      // 更新用户显示名称映射表
+      Object.assign(userDisplayNames.value, response.data)
+    }
+  } catch (error: any) {
+    console.error('获取用户昵称失败:', error)
+  }
+}
+
+// 获取用户显示名称（优先昵称，否则ID）
+const getUserDisplayName = (userId?: string) => {
+  if (!userId) return '匿名'
+  return userDisplayNames.value[userId] || userId
 }
 
 // 发表回复

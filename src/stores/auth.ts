@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { login as loginApi, register as registerApi } from '@/api/auth'
+import { login as loginApi, register as registerApi, getUserInfo as getUserInfoApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = ref(false)
   const userPhone = ref('')
+  const nickname = ref('')
   const token = ref('')
   const loading = ref(false)
   
@@ -12,10 +13,30 @@ export const useAuthStore = defineStore('auth', () => {
   const initAuth = () => {
     const savedToken = localStorage.getItem('token')
     const savedPhone = localStorage.getItem('userPhone')
+    const savedNickname = localStorage.getItem('nickname')
     if (savedToken && savedPhone) {
       token.value = savedToken
       userPhone.value = savedPhone
+      nickname.value = savedNickname || ''
       isLoggedIn.value = true
+    }
+  }
+  
+  // 获取用户信息
+  const fetchUserInfo = async () => {
+    if (!userPhone.value) return
+    
+    try {
+      const response = await getUserInfoApi(userPhone.value)
+      if (response.code === 200 || response.code === 0) {
+        const userInfo = response.data
+        if (userInfo) {
+          nickname.value = userInfo.nickname || ''
+          localStorage.setItem('nickname', nickname.value)
+        }
+      }
+    } catch (error: any) {
+      console.error('获取用户信息失败:', error)
     }
   }
   
@@ -40,6 +61,9 @@ export const useAuthStore = defineStore('auth', () => {
         // 保存token和用户信息
         localStorage.setItem('token', token.value)
         localStorage.setItem('userPhone', phone)
+        
+        // 获取用户信息（包括昵称）
+        await fetchUserInfo()
         
         // 如果选择记住我，保存到 localStorage
         if (remember) {
@@ -97,10 +121,18 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = () => {
     isLoggedIn.value = false
     userPhone.value = ''
+    nickname.value = ''
     token.value = ''
     localStorage.removeItem('token')
     localStorage.removeItem('userPhone')
+    localStorage.removeItem('nickname')
     localStorage.removeItem('rememberedPhone')
+  }
+  
+  // 更新昵称
+  const updateNickname = (newNickname: string) => {
+    nickname.value = newNickname
+    localStorage.setItem('nickname', newNickname)
   }
   
   // 检查是否有记住的手机号
@@ -117,12 +149,15 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     isLoggedIn,
     userPhone,
+    nickname,
     token,
     loading,
     login,
     register,
     logout,
-    checkRemembered
+    checkRemembered,
+    fetchUserInfo,
+    updateNickname
   }
 })
 

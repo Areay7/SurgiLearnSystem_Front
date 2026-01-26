@@ -132,6 +132,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Instructors',
         component: () => import('@/views/teaching/Instructors.vue'),
         meta: { title: '讲师分配' }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/Profile.vue'),
+        meta: { title: '个人主页' }
       }
     ]
   }

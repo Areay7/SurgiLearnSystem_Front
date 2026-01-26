@@ -58,3 +58,43 @@ export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse
     data
   })
 }
+
+// 用户信息类型
+export interface UserInfo {
+  id?: number
+  username: string
+  nickname?: string
+}
+
+/**
+ * 获取用户信息
+ */
+export function getUserInfo(username: string): Promise<ApiResponse<UserInfo>> {
+  return request({
+    url: '/auth/userInfo',
+    method: 'get',
+    params: { username }
+  })
+}
+
+/**
+ * 更新用户信息
+ */
+export function updateUserInfo(data: { username: string; nickname: string }): Promise<ApiResponse> {
+  return request({
+    url: '/auth/updateUserInfo',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 批量获取用户信息（用于显示昵称）
+ */
+export function batchUserInfo(usernames: string[]): Promise<ApiResponse<Record<string, string>>> {
+  return request({
+    url: '/auth/batchUserInfo',
+    method: 'post',
+    data: { usernames }
+  })
+}
