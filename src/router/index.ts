@@ -86,6 +86,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '护理培训' }
       },
       {
+        path: 'training/:id',
+        name: 'TrainingDetail',
+        component: () => import('@/views/teaching/TrainingDetail.vue'),
+        meta: { title: '护理培训详情' }
+      },
+      {
         path: 'materials',
         name: 'Materials',
         component: () => import('@/views/teaching/Materials.vue'),
