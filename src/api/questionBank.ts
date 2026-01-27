@@ -117,3 +117,30 @@ export function deleteQuestionBank(ids: string): Promise<ApiResponse> {
     params: { ids }
   })
 }
+
+/**
+ * 下载题库导入模板（Excel）
+ */
+export function downloadQuestionBankTemplate(): Promise<Blob> {
+  return request({
+    url: '/QuestionBankController/template',
+    method: 'get',
+    responseType: 'blob'
+  } as any)
+}
+
+/**
+ * 批量导入题库（Excel .xlsx）
+ */
+export function importQuestionBankExcel(file: File): Promise<ApiResponse<{ success: number; errors: string[] }>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/QuestionBankController/import',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  } as any)
+}

@@ -4,9 +4,19 @@
       <h1 class="page-title">在线题库</h1>
       <div class="header-actions">
         <button class="btn-primary" @click="openAddDialog">新增试题</button>
+        <button class="btn-action" @click="handleDownloadTemplate" :disabled="downloading">下载导入模板</button>
+        <button class="btn-action" @click="triggerImport" :disabled="importing">批量导入Excel</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
     </div>
+
+    <input
+      ref="importInputRef"
+      type="file"
+      accept=".xlsx"
+      class="hidden-file-input"
+      @change="handleImportChange"
+    />
     
     <div class="question-bank-content">
       <!-- 搜索表单 -->
@@ -394,10 +404,21 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { QuestionBank } from '@/api/questionBank'
-import { addQuestionBank, deleteQuestionBank, getQuestionBankList, updateQuestionBank } from '@/api/questionBank'
+import {
+  addQuestionBank,
+  deleteQuestionBank,
+  downloadQuestionBankTemplate,
+  getQuestionBankList,
+  importQuestionBankExcel,
+  updateQuestionBank
+} from '@/api/questionBank'
 
 const loading = ref(false)
 const saving = ref(false)
+const downloading = ref(false)
+const importing = ref(false)
+
+const importInputRef = ref<HTMLInputElement | null>(null)
 
 const questions = ref<QuestionBank[]>([])
 const selectedIds = ref<number[]>([])
@@ -723,6 +744,57 @@ const getDifficultyClass = (difficulty?: string) => {
 onMounted(() => {
   loadData()
 })
+
+const handleDownloadTemplate = async () => {
+  downloading.value = true
+  try {
+    const blob = await downloadQuestionBankTemplate()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '题库导入模板.xlsx'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    alert(e.message || '下载模板失败')
+  } finally {
+    downloading.value = false
+  }
+}
+
+const triggerImport = () => {
+  importInputRef.value?.click()
+}
+
+const handleImportChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 允许重复选择同一文件
+  input.value = ''
+  if (!file) return
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    alert('仅支持 .xlsx 文件')
+    return
+  }
+  importing.value = true
+  try {
+    const res = await importQuestionBankExcel(file)
+    const success = res.data?.success ?? 0
+    const errors = res.data?.errors ?? []
+    if (errors.length > 0) {
+      alert(`导入完成：成功 ${success} 条，失败 ${errors.length} 条\\n\\n` + errors.slice(0, 20).join('\\n'))
+    } else {
+      alert(`导入完成：成功 ${success} 条`)
+    }
+    loadData()
+  } catch (err: any) {
+    alert(err.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -778,6 +850,10 @@ onMounted(() => {
 .btn-action:hover {
   border-color: var(--danger-color);
   color: var(--danger-color);
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .search-form {

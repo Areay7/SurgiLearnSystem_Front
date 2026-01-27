@@ -228,15 +228,14 @@
             
             <div class="form-row">
               <div class="form-group">
-                <label>总分 *</label>
+                <label>总分（按已选题目自动计算）</label>
                 <input
                   type="number"
                   class="form-input"
-                  placeholder="请输入总分"
-                  v-model.number="editForm.totalScore"
-                  min="1"
-                  :disabled="saving"
+                  :value="editForm.totalScore || 0"
+                  disabled
                 />
+                <div class="form-hint">提示：请在“选择题目”中勾选题目，系统会按题目分值自动汇总总分。</div>
               </div>
               <div class="form-group">
                 <label>及格分 *</label>
@@ -685,7 +684,16 @@ const startExam = (exam: Exam) => {
   router.push(`/exam-taking/${exam.id}`)
 }
 
-// 确认选择题目
+// 计算所选题目总分
+const calcSelectedTotalScore = () => {
+  const scoreMap = new Map<number, number>()
+  availableQuestions.value.forEach(q => {
+    if (q.id != null) scoreMap.set(q.id, Number(q.score || 0))
+  })
+  return selectedQuestionIds.value.reduce((sum, id) => sum + (scoreMap.get(id) || 0), 0)
+}
+
+// 确认选择题目（保存题目列表+自动计算总分）
 const confirmSelectQuestions = async () => {
   if (selectedQuestionIds.value.length === 0) {
     alert('请至少选择一道题目')
@@ -702,11 +710,13 @@ const confirmSelectQuestions = async () => {
   try {
     // 将选中的题目ID保存为JSON数组格式
     const questionIdsJson = JSON.stringify(selectedQuestionIds.value)
+    const totalScore = calcSelectedTotalScore()
     
     // 立即更新到数据库
     const data = {
       id: editForm.id,
-      questionIds: questionIdsJson
+      questionIds: questionIdsJson,
+      totalScore
     }
     
     const response = await updateExam(data)
@@ -714,6 +724,11 @@ const confirmSelectQuestions = async () => {
     if (response.code === 200 || response.code === 0) {
       alert('题目选择成功')
       editForm.questionIds = questionIdsJson
+      editForm.totalScore = totalScore
+      // 如果及格分大于总分，自动下调到总分
+      if ((editForm.passScore || 0) > totalScore) {
+        editForm.passScore = totalScore
+      }
       showSelectQuestionsDialog.value = false
       // 刷新列表数据
       loadData()
@@ -750,7 +765,9 @@ const handleSave = async () => {
     alert('请输入有效的及格分')
     return
   }
-  if (editForm.passScore > editForm.totalScore) {
+  // 总分由选题自动计算，允许为0（未选题）。如总分>0，则及格分必须<=总分
+  const totalScore = editForm.totalScore || 0
+  if (totalScore > 0 && editForm.passScore > totalScore) {
     alert('及格分不能大于总分')
     return
   }
