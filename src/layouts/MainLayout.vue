@@ -38,7 +38,7 @@
             </router-link>
           </div>
           
-          <div class="menu-section">
+          <div class="menu-section" v-if="isAdmin">
             <h3 class="section-title">系统功能</h3>
             <router-link to="/certificate" class="nav-item">
               <span class="nav-icon">📜</span>
@@ -125,6 +125,10 @@ const router = useRouter()
 
 const displayName = computed(() => {
   return authStore.nickname || authStore.userPhone || '管理员'
+})
+
+const isAdmin = computed(() => {
+  return (authStore.userType || 0) === 1
 })
 
 const goToProfile = () => {

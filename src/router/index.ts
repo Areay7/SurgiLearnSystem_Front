@@ -52,31 +52,31 @@ const routes: RouteRecordRaw[] = [
         path: 'certificate',
         name: 'Certificate',
         component: () => import('@/views/system/Certificate.vue'),
-        meta: { title: '证书颁发' }
+        meta: { title: '证书颁发', requiresAdmin: true }
       },
       {
         path: 'mobile',
         name: 'Mobile',
         component: () => import('@/views/system/Mobile.vue'),
-        meta: { title: '移动访问支持' }
+        meta: { title: '移动访问支持', requiresAdmin: true }
       },
       {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/system/Settings.vue'),
-        meta: { title: '系统设置' }
+        meta: { title: '系统设置', requiresAdmin: true }
       },
       {
         path: 'permissions',
         name: 'Permissions',
         component: () => import('@/views/system/Permissions.vue'),
-        meta: { title: '用户权限管理' }
+        meta: { title: '用户权限管理', requiresAdmin: true }
       },
       {
         path: 'backup',
         name: 'Backup',
         component: () => import('@/views/system/Backup.vue'),
-        meta: { title: '数据备份' }
+        meta: { title: '数据备份', requiresAdmin: true }
       },
       // 教学管理模块
       {
@@ -116,10 +116,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考试系统' }
       },
       {
+        path: 'exam-taking/:id',
+        name: 'ExamTaking',
+        component: () => import('@/views/teaching/ExamTaking.vue'),
+        meta: { title: '考试答题', requiresAuth: true }
+      },
+      {
         path: 'students',
         name: 'Students',
         component: () => import('@/views/teaching/Students.vue'),
-        meta: { title: '学员记录管理' }
+        meta: { title: '学员记录管理', requiresAdmin: true }
       },
       {
         path: 'progress',
@@ -167,6 +173,16 @@ router.beforeEach((to, from, next) => {
   else if (to.path === '/login' && authStore.isLoggedIn) {
     next('/dashboard')
   } 
+  // 管理员路由保护
+  else if (to.meta.requiresAdmin) {
+    const isAdmin = (authStore.userType || 0) === 1
+    if (!isAdmin) {
+      alert('无权限访问该页面（仅管理员可见）')
+      next('/dashboard')
+    } else {
+      next()
+    }
+  }
   else {
     next()
   }

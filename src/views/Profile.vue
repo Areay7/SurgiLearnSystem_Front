@@ -15,27 +15,147 @@
           </div>
           
           <div v-else class="profile-form">
-            <div class="form-group">
-              <label>手机号</label>
-              <input
-                type="text"
-                :value="userInfo.username"
-                class="form-input"
-                disabled
-              />
-              <span class="form-hint">手机号不可修改</span>
+            <!-- 基本信息 -->
+            <div class="form-section">
+              <h3 class="section-title">基本信息</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>手机号</label>
+                  <input
+                    type="text"
+                    :value="userInfo.username"
+                    class="form-input"
+                    disabled
+                  />
+                  <span class="form-hint">手机号不可修改</span>
+                </div>
+                
+                <div class="form-group">
+                  <label>昵称</label>
+                  <input
+                    v-model="formData.nickname"
+                    type="text"
+                    placeholder="请输入昵称"
+                    class="form-input"
+                    maxlength="50"
+                    :disabled="saving"
+                  />
+                  <span class="form-hint">设置昵称后，系统将显示昵称而不是手机号</span>
+                </div>
+                
+                <div class="form-group">
+                  <label>学员姓名 *</label>
+                  <input
+                    v-model="studentForm.studentName"
+                    type="text"
+                    placeholder="请输入学员姓名"
+                    class="form-input"
+                    maxlength="100"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>员工编号</label>
+                  <input
+                    v-model="studentForm.employeeId"
+                    type="text"
+                    placeholder="请输入员工编号"
+                    class="form-input"
+                    maxlength="50"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>邮箱</label>
+                  <input
+                    v-model="studentForm.email"
+                    type="email"
+                    placeholder="请输入邮箱"
+                    class="form-input"
+                    maxlength="100"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>性别</label>
+                  <select class="form-input" v-model="studentForm.gender" :disabled="saving">
+                    <option value="">请选择</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label>出生日期</label>
+                  <input
+                    type="date"
+                    class="form-input"
+                    v-model="studentForm.birthDate"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>用户类型</label>
+                  <select class="form-input" v-model="studentForm.userType" :disabled="saving || !isAdmin">
+                    <option :value="1">学员</option>
+                    <option :value="2">讲师</option>
+                    <option :value="3">其他(管理员)</option>
+                  </select>
+                  <span class="form-hint" v-if="!isAdmin">用户类型仅管理员可修改</span>
+                </div>
+              </div>
             </div>
             
-            <div class="form-group">
-              <label>昵称</label>
-              <input
-                v-model="formData.nickname"
-                type="text"
-                placeholder="请输入昵称"
-                class="form-input"
-                maxlength="50"
-              />
-              <span class="form-hint">设置昵称后，系统将显示昵称而不是手机号</span>
+            <!-- 工作信息 -->
+            <div class="form-section">
+              <h3 class="section-title">工作信息</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>部门</label>
+                  <input
+                    v-model="studentForm.department"
+                    type="text"
+                    placeholder="请输入部门"
+                    class="form-input"
+                    maxlength="100"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>职位</label>
+                  <input
+                    v-model="studentForm.position"
+                    type="text"
+                    placeholder="请输入职位"
+                    class="form-input"
+                    maxlength="100"
+                    :disabled="saving"
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>状态</label>
+                  <select class="form-input" v-model="studentForm.status" :disabled="saving">
+                    <option value="正常">正常</option>
+                    <option value="停用">停用</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label>入学日期</label>
+                  <input
+                    type="date"
+                    class="form-input"
+                    v-model="studentForm.enrollmentDate"
+                    :disabled="saving"
+                  />
+                </div>
+              </div>
             </div>
             
             <div class="form-actions">
@@ -54,10 +174,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getUserInfo, updateUserInfo, type UserInfo } from '@/api/auth'
+import { getUserInfo, updateUserInfo, getStudentInfo, updateStudentInfo, type UserInfo, type StudentInfo } from '@/api/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -73,6 +193,24 @@ const formData = ref({
   nickname: ''
 })
 
+const studentForm = ref<StudentInfo>({
+  studentName: '',
+  phone: authStore.userPhone || '',
+  email: '',
+  gender: '',
+  birthDate: '',
+  department: '',
+  position: '',
+  employeeId: '',
+  userType: 1, // 默认学员
+  status: '正常',
+  enrollmentDate: ''
+})
+
+const isAdmin = computed(() => {
+  return authStore.userType === 1
+})
+
 // 加载用户信息
 const loadUserInfo = async () => {
   if (!authStore.userPhone) {
@@ -82,12 +220,38 @@ const loadUserInfo = async () => {
   
   loading.value = true
   try {
-    const response = await getUserInfo(authStore.userPhone)
-    if (response.code === 200 || response.code === 0) {
-      userInfo.value = response.data as UserInfo
+    // 加载登录用户信息（昵称等）
+    const userResponse = await getUserInfo(authStore.userPhone)
+    if (userResponse.code === 200 || userResponse.code === 0) {
+      userInfo.value = userResponse.data as UserInfo
       formData.value.nickname = userInfo.value.nickname || ''
     } else {
-      alert('获取用户信息失败：' + (response.msg || '未知错误'))
+      console.warn('获取用户信息失败：', userResponse.msg)
+    }
+    
+    // 加载学员详细信息
+    const studentResponse = await getStudentInfo(authStore.userPhone)
+    if (studentResponse.code === 200 || studentResponse.code === 0) {
+      const student = studentResponse.data as StudentInfo
+      if (student) {
+        // 填充表单数据
+        studentForm.value = {
+          studentName: student.studentName || '',
+          phone: student.phone || authStore.userPhone || '',
+          email: student.email || '',
+          gender: student.gender || '',
+          birthDate: student.birthDate ? student.birthDate.split('T')[0] : '',
+          department: student.department || '',
+          position: student.position || '',
+          employeeId: student.employeeId || '',
+          userType: student.userType || 1,
+          status: student.status || '正常',
+          enrollmentDate: student.enrollmentDate ? student.enrollmentDate.split('T')[0] : ''
+        }
+      }
+    } else {
+      console.warn('获取学员信息失败：', studentResponse.msg)
+      // 如果学员记录不存在，使用默认值
     }
   } catch (error: any) {
     console.error('获取用户信息失败:', error)
@@ -104,21 +268,56 @@ const handleSave = async () => {
     return
   }
   
+  // 验证必填字段
+  if (!studentForm.value.studentName?.trim()) {
+    alert('请输入学员姓名')
+    return
+  }
+  
   saving.value = true
   try {
-    const response = await updateUserInfo({
-      username: authStore.userPhone,
-      nickname: formData.value.nickname.trim()
-    })
+    // 保存昵称（登录用户信息）
+    if (formData.value.nickname !== userInfo.value.nickname) {
+      const userResponse = await updateUserInfo({
+        username: authStore.userPhone,
+        nickname: formData.value.nickname.trim()
+      })
+      
+      if (userResponse.code === 200 || userResponse.code === 0) {
+        // 更新store中的昵称
+        authStore.updateNickname(formData.value.nickname.trim())
+      } else {
+        console.warn('更新昵称失败：', userResponse.msg)
+      }
+    }
     
-    if (response.code === 200 || response.code === 0) {
+    // 保存学员详细信息
+    const studentData: any = {
+      phone: authStore.userPhone,
+      studentName: studentForm.value.studentName.trim(),
+      email: studentForm.value.email?.trim() || undefined,
+      gender: studentForm.value.gender || undefined,
+      birthDate: studentForm.value.birthDate ? new Date(studentForm.value.birthDate).toISOString() : undefined,
+      department: studentForm.value.department?.trim() || undefined,
+      position: studentForm.value.position?.trim() || undefined,
+      employeeId: studentForm.value.employeeId?.trim() || undefined,
+      status: studentForm.value.status || '正常',
+      enrollmentDate: studentForm.value.enrollmentDate ? new Date(studentForm.value.enrollmentDate).toISOString() : undefined
+    }
+    
+    // 只有管理员可以修改用户类型
+    if (isAdmin.value && studentForm.value.userType) {
+      studentData.userType = studentForm.value.userType
+    }
+    
+    const studentResponse = await updateStudentInfo(studentData)
+    
+    if (studentResponse.code === 200 || studentResponse.code === 0) {
       alert('保存成功')
-      // 更新store中的昵称
-      authStore.updateNickname(formData.value.nickname.trim())
       // 重新加载用户信息
       await loadUserInfo()
     } else {
-      alert('保存失败：' + (response.msg || '未知错误'))
+      alert('保存失败：' + (studentResponse.msg || '未知错误'))
     }
   } catch (error: any) {
     console.error('保存失败:', error)
@@ -131,6 +330,7 @@ const handleSave = async () => {
 // 取消
 const handleCancel = () => {
   formData.value.nickname = userInfo.value.nickname || ''
+  loadUserInfo()
 }
 
 // 页面加载
@@ -167,7 +367,7 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.04);
   width: 100%;
-  max-width: 600px;
+  max-width: 1000px;
   overflow: hidden;
 }
 
@@ -198,7 +398,28 @@ onMounted(() => {
 .profile-form {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
 }
 
 .form-group {
@@ -246,6 +467,8 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
 }
 
 .btn-primary {
@@ -293,5 +516,15 @@ onMounted(() => {
 .btn-cancel:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .profile-card {
+    max-width: 100%;
+  }
 }
 </style>

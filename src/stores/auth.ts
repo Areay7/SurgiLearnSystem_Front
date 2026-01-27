@@ -6,6 +6,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = ref(false)
   const userPhone = ref('')
   const nickname = ref('')
+  const userType = ref<number>(0) // 0普通用户 1管理员
   const token = ref('')
   const loading = ref(false)
   
@@ -14,10 +15,12 @@ export const useAuthStore = defineStore('auth', () => {
     const savedToken = localStorage.getItem('token')
     const savedPhone = localStorage.getItem('userPhone')
     const savedNickname = localStorage.getItem('nickname')
+    const savedUserType = localStorage.getItem('userType')
     if (savedToken && savedPhone) {
       token.value = savedToken
       userPhone.value = savedPhone
       nickname.value = savedNickname || ''
+      userType.value = savedUserType ? Number(savedUserType) : 0
       isLoggedIn.value = true
     }
   }
@@ -33,6 +36,8 @@ export const useAuthStore = defineStore('auth', () => {
         if (userInfo) {
           nickname.value = userInfo.nickname || ''
           localStorage.setItem('nickname', nickname.value)
+          userType.value = userInfo.userType != null ? userInfo.userType : userType.value
+          localStorage.setItem('userType', String(userType.value))
         }
       }
     } catch (error: any) {
@@ -56,11 +61,13 @@ export const useAuthStore = defineStore('auth', () => {
         // 登录成功
         isLoggedIn.value = true
         userPhone.value = phone
-        token.value = response.data || ''
+        token.value = response.data?.token || ''
+        userType.value = response.data?.userType != null ? response.data.userType : 0
         
         // 保存token和用户信息
         localStorage.setItem('token', token.value)
         localStorage.setItem('userPhone', phone)
+        localStorage.setItem('userType', String(userType.value))
         
         // 获取用户信息（包括昵称）
         await fetchUserInfo()
@@ -122,10 +129,12 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn.value = false
     userPhone.value = ''
     nickname.value = ''
+    userType.value = 0
     token.value = ''
     localStorage.removeItem('token')
     localStorage.removeItem('userPhone')
     localStorage.removeItem('nickname')
+    localStorage.removeItem('userType')
     localStorage.removeItem('rememberedPhone')
   }
   
@@ -150,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     userPhone,
     nickname,
+    userType,
     token,
     loading,
     login,

@@ -26,10 +26,16 @@ export interface ApiResponse<T = any> {
   data?: T
 }
 
+// 登录返回数据
+export interface LoginResponseData {
+  token: string
+  userType: number // 0普通用户 1管理员
+}
+
 /**
  * 用户登录
  */
-export function login(data: LoginRequest): Promise<ApiResponse<string>> {
+export function login(data: LoginRequest): Promise<ApiResponse<LoginResponseData>> {
   return request({
     url: '/auth/login',
     method: 'post',
@@ -64,6 +70,7 @@ export interface UserInfo {
   id?: number
   username: string
   nickname?: string
+  userType?: number
 }
 
 /**
@@ -96,5 +103,58 @@ export function batchUserInfo(usernames: string[]): Promise<ApiResponse<Record<s
     url: '/auth/batchUserInfo',
     method: 'post',
     data: { usernames }
+  })
+}
+
+// 学员详细信息类型（来自 students 表）
+export interface StudentInfo {
+  id?: number
+  studentId?: number
+  studentName?: string
+  phone?: string
+  email?: string
+  gender?: string
+  birthDate?: string
+  department?: string
+  position?: string
+  employeeId?: string
+  userType?: number // 1-学员 2-讲师 3-其他(管理员)
+  status?: string
+  enrollmentDate?: string
+  createTime?: string
+  updateTime?: string
+}
+
+/**
+ * 获取学员详细信息
+ */
+export function getStudentInfo(phone: string): Promise<ApiResponse<StudentInfo>> {
+  return request({
+    url: '/auth/studentInfo',
+    method: 'get',
+    params: { phone }
+  })
+}
+
+/**
+ * 更新学员详细信息
+ */
+export function updateStudentInfo(data: {
+  phone: string
+  studentName?: string
+  email?: string
+  gender?: string
+  birthDate?: string
+  department?: string
+  position?: string
+  employeeId?: string
+  userType?: number
+  status?: string
+  enrollmentDate?: string
+}): Promise<ApiResponse> {
+  return request({
+    url: '/auth/updateStudentInfo',
+    method: 'post',
+    data
   })
 }
