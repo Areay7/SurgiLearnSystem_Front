@@ -75,6 +75,10 @@
               <span class="nav-icon">🎓</span>
               <span class="nav-text">护理培训</span>
             </router-link>
+            <router-link v-if="!isAdmin" to="/my-certificates" class="nav-item">
+              <span class="nav-icon">🏅</span>
+              <span class="nav-text">我的证书</span>
+            </router-link>
             <router-link to="/materials" class="nav-item">
               <span class="nav-icon">📄</span>
               <span class="nav-text">学习资料管理</span>

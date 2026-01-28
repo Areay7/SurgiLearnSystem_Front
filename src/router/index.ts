@@ -55,6 +55,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '证书颁发', requiresAdmin: true }
       },
       {
+        path: 'my-certificates',
+        name: 'MyCertificates',
+        component: () => import('@/views/system/MyCertificates.vue'),
+        meta: { title: '我的证书' }
+      },
+      {
         path: 'mobile',
         name: 'Mobile',
         component: () => import('@/views/system/Mobile.vue'),
