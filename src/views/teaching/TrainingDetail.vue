@@ -29,9 +29,51 @@
     <div class="card">
       <div class="section-header">
         <div class="section-title">培训资料</div>
-        <button v-if="isAdmin" class="btn-config" @click="openConfigDialog">配置资料</button>
+        <div v-if="isAdmin" class="section-actions">
+          <router-link :to="`/training/${trainingId}/edit-materials`" class="btn-editor">编辑培训资料（白板）</router-link>
+          <button class="btn-config" @click="openConfigDialog">配置资料</button>
+        </div>
       </div>
-      <div class="table">
+      <!-- 白板资料：有内容块时按白板从上往下展示 -->
+      <div v-if="contentBlocks.length > 0" class="whiteboard-view">
+        <div
+          v-for="(block, index) in contentBlocks"
+          :key="block.id || index"
+          class="wb-block"
+          :class="`wb-${block.blockType}`"
+        >
+          <div class="wb-block-label">{{ blockLabel(block.blockType) }}</div>
+          <div class="wb-block-body">
+            <template v-if="block.blockType === 'text'">
+              <div class="wb-text" v-html="textToHtml(block.content)"></div>
+            </template>
+            <template v-else-if="block.materialId && contentBlockMaterialMap[block.materialId]">
+              <template v-if="block.blockType === 'image'">
+                <img
+                  :src="previewUrlFor(block.materialId)"
+                  class="wb-preview-img"
+                  alt="预览"
+                  @click="openPreview(block.materialId!, 'image')"
+                />
+                <div class="wb-meta">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</div>
+              </template>
+              <template v-else>
+                <div class="wb-file-row">
+                  <span class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</span>
+                  <template v-if="block.blockType === 'file'">
+                    <a :href="downloadUrlFor(block.materialId)" target="_blank" class="btn" @click="report(block.materialId!, 100, 1, 0)">下载</a>
+                  </template>
+                  <template v-else>
+                    <button class="btn" @click="openPreview(block.materialId!, block.blockType === 'pdf' ? 'pdf' : block.blockType === 'video' ? 'video' : 'other')">预览</button>
+                  </template>
+                </div>
+              </template>
+            </template>
+          </div>
+        </div>
+      </div>
+      <!-- 原有表格：无白板内容或管理员查看时仍可看关联资料列表 -->
+      <div v-else class="table">
         <div class="tr th">
           <div class="td">资料ID</div>
           <div class="td">完成情况</div>
@@ -52,10 +94,10 @@
           </div>
         </div>
         <div class="tr" v-if="materials.length === 0">
-          <div class="td" style="grid-column: 1 / -1; text-align: center; padding: 18px;">暂无资料，请在后台给该培训关联资料</div>
+          <div class="td" style="grid-column: 1 / -1; text-align: center; padding: 18px;">暂无资料，请管理员在「编辑培训资料（白板）」或「配置资料」中添加。</div>
         </div>
       </div>
-      <div class="hint">说明：PDF/图片/视频可在线预览；Word/PPT 等文档建议下载后查看。视频可在后续接入“观看进度自动上报”。</div>
+      <div class="hint">说明：PDF/图片/视频可在线预览；Word/PPT 等文档供下载。管理员可使用「编辑培训资料（白板）」从上往下自由编排资料。</div>
     </div>
 
     <!-- 配置培训资料（仅管理员） -->
@@ -158,7 +200,8 @@ import { useAuthStore } from '@/stores/auth'
 import { getTrainingDetail, getTrainingMaterials, getTrainingMaterialProgressList, getTrainingProgress, reportTrainingMaterialProgress, startTraining } from '@/api/training'
 import type { Training, TrainingMaterial, TrainingProgress } from '@/api/training'
 import { getMaterialsList, type LearningMaterial } from '@/api/materials'
-import { setTrainingMaterials } from '@/api/trainingAdmin'
+import { setTrainingMaterials, getTrainingContentBlocks } from '@/api/trainingAdmin'
+import type { TrainingContentBlock } from '@/api/trainingAdmin'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -170,6 +213,8 @@ const isAdmin = computed(() => (authStore.userType || 0) === 1)
 
 const training = ref<Training | null>(null)
 const materials = ref<TrainingMaterial[]>([])
+const contentBlocks = ref<(TrainingContentBlock & { id?: number })[]>([])
+const contentBlockMaterialMap = ref<Record<number, LearningMaterial>>({})
 const progress = ref<TrainingProgress | null>(null)
 const materialProgressMap = ref<Record<number, { percent: number; completed: boolean }>>({})
 
@@ -193,8 +238,24 @@ const load = async () => {
   const d = await getTrainingDetail(id)
   training.value = d.data || null
 
-  const m = await getTrainingMaterials(id)
-  materials.value = m.data || []
+  const [mRes, cbRes] = await Promise.all([
+    getTrainingMaterials(id),
+    getTrainingContentBlocks(id).catch(() => ({ data: [] }))
+  ])
+  materials.value = mRes.data || []
+  contentBlocks.value = (cbRes.data || []) as (TrainingContentBlock & { id?: number })[]
+
+  const materialIds = new Set<number>()
+  contentBlocks.value.forEach(b => { if (b.materialId) materialIds.add(b.materialId) })
+  if (materialIds.size > 0) {
+    const listRes = await getMaterialsList({ page: 1, limit: 500, status: '已发布' })
+    const list: LearningMaterial[] = listRes.data || []
+    const map: Record<number, LearningMaterial> = {}
+    list.forEach(mat => { if (mat.id && materialIds.has(mat.id)) map[mat.id] = mat })
+    contentBlockMaterialMap.value = map
+  } else {
+    contentBlockMaterialMap.value = {}
+  }
 
   if (studentId.value) {
     try {
@@ -335,6 +396,19 @@ const getPercent = (materialId?: number) => {
   return materialProgressMap.value[materialId]?.percent ?? 0
 }
 
+const blockLabel = (t: string) => {
+  const map: Record<string, string> = { text: '文字', image: '图片', video: '视频', pdf: 'PDF', file: '文件' }
+  return map[t] || t
+}
+const textToHtml = (s?: string) => {
+  if (!s) return ''
+  return s.replace(/\n/g, '<br/>')
+}
+const previewUrlFor = (materialId: number) =>
+  `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
+const downloadUrlFor = (materialId: number) =>
+  `${API_BASE_URL}/LearningMaterialController/download/${materialId}`
+
 const guessTypeByExt = (ext?: string) => {
   const lower = (ext || '').toLowerCase()
   if (lower.endsWith('.pdf')) return 'pdf'
@@ -343,15 +417,11 @@ const guessTypeByExt = (ext?: string) => {
   return 'other'
 }
 
-const openPreview = async (materialId: number) => {
-  // 直接走后端预览接口（避免前端 3000 返回 text/html 的问题）
+const openPreview = async (materialId: number, suggestedType?: 'pdf' | 'image' | 'video' | 'other') => {
   const url = `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
   previewUrl.value = url
-  // 这里无法直接拿到 fileType，先按 mp4/pdf/jpg 常见情况交给浏览器渲染；不行可切换到下载
-  previewType.value = 'other'
+  previewType.value = suggestedType ?? 'other'
   showPreview.value = true
-
-  // 先把“打开预览”视为开始学习：上报 1%（避免未开始一直为 0）
   await report(materialId, 1, 0, 0)
 }
 
@@ -406,6 +476,9 @@ onMounted(load)
 .bar-inner { height: 100%; background: var(--primary-color); }
 .section-title { font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.section-actions { display: flex; gap: 8px; align-items: center; }
+.btn-editor { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--primary-color); color: var(--primary-color); background: white; font-size: 12px; cursor: pointer; text-decoration: none; }
+.btn-editor:hover { background: #ecf5ff; }
 .btn-config { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: white; font-size: 12px; cursor: pointer; }
 .table .tr { display: grid; grid-template-columns: 1fr 1fr 1fr 1.4fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-color); align-items: center; }
 .table .tr.th { color: var(--text-secondary); font-size: 12px; font-weight: 600; padding-top: 0; }
@@ -431,5 +504,15 @@ onMounted(load)
 .checkbox-col { display: flex; align-items: center; justify-content: center; }
 .form-input { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 14px; }
 .btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: white; cursor: pointer; font-size: 12px; }
+
+.whiteboard-view { display: flex; flex-direction: column; gap: 16px; }
+.wb-block { background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
+.wb-block-label { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text-secondary); background: #eef2f7; }
+.wb-block-body { padding: 12px 16px; }
+.wb-text { font-size: 14px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+.wb-preview-img { max-width: 100%; max-height: 280px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color); }
+.wb-meta { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+.wb-file-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wb-file-name { flex: 1; min-width: 0; font-size: 14px; color: var(--text-primary); }
 </style>
 

@@ -92,6 +92,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '护理培训详情' }
       },
       {
+        path: 'training/:id/edit-materials',
+        name: 'TrainingMaterialEditor',
+        component: () => import('@/views/teaching/TrainingMaterialEditor.vue'),
+        meta: { title: '编辑培训资料' }
+      },
+      {
         path: 'materials',
         name: 'Materials',
         component: () => import('@/views/teaching/Materials.vue'),
