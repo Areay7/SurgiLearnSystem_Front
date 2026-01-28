@@ -26,3 +26,68 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ====== 全局移动端适配（尽量不改每个页面） ====== */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  /* 通用：页面头部改为上下排列 */
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  /* 通用：筛选/工具栏换行 */
+  .filters,
+  .toolbar,
+  .header-actions,
+  .actions,
+  .config-toolbar {
+    flex-wrap: wrap !important;
+  }
+
+  /* 通用：表格在手机上转“卡片列” */
+  .table .tr.th {
+    display: none !important;
+  }
+  .table .tr {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+  .table .td.actions,
+  .actions {
+    justify-content: flex-start !important;
+  }
+
+  /* 通用：卡片/容器内边距更紧凑 */
+  .card {
+    padding: 14px !important;
+  }
+
+  /* 通用：弹窗手机端全屏化（避免挤在中间看不到） */
+  .dialog-overlay {
+    align-items: flex-end !important;
+  }
+  .dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+  .dialog-body {
+    max-height: calc(92vh - 120px) !important;
+    overflow-y: auto !important;
+  }
+
+  /* 通用：输入框/下拉框占满宽度 */
+  .search-input,
+  .form-input,
+  .select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+

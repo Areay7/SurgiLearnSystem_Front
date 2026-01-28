@@ -2,7 +2,7 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">移动访问支持</h1>
-      <button class="btn-primary">生成二维码</button>
+      <button class="btn-primary" @click="copyLink">复制访问链接</button>
     </div>
 
     <div class="grid">
@@ -22,12 +22,13 @@
           </div>
           <div class="qr-meta">
             <div class="k">访问地址</div>
-            <div class="v">http://localhost:5173</div>
+            <div class="v">{{ accessUrl }}</div>
+            <div class="tip">提示：请确保手机与电脑在同一 WiFi；并使用电脑的局域网 IP 访问。</div>
           </div>
         </div>
         <div class="actions">
-          <button class="btn">复制链接</button>
-          <button class="btn">下载二维码</button>
+          <button class="btn" @click="copyLink">复制链接</button>
+          <button class="btn" @click="copyBackend">复制后端地址</button>
         </div>
       </div>
     </div>
@@ -45,7 +46,36 @@
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { computed } from 'vue'
+import { API_BASE_URL } from '@/config/api'
+
+const accessUrl = computed(() => {
+  if (typeof window === 'undefined') return ''
+  return window.location.origin
+})
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    alert('已复制')
+  } catch {
+    // 兼容不支持 clipboard 的浏览器
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    alert('已复制')
+  }
+}
+
+const copyLink = () => copyText(accessUrl.value)
+const copyBackend = () => copyText(API_BASE_URL)
+</script>
 
 <style scoped>
 .page-header {
@@ -159,6 +189,28 @@
   background: #ecf5ff;
   color: var(--primary-color);
   border: 1px solid rgba(64, 158, 255, 0.25);
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .qr {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .qr-box {
+    width: 140px;
+    height: 140px;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
 }
 </style>
 

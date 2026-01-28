@@ -179,7 +179,8 @@ function refreshMaterialMap() {
 }
 
 function previewUrlFor(materialId: number) {
-  return `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
+  // 编辑页里也使用稳定 URL，避免频繁重渲染导致资源反复刷新
+  return `${API_BASE_URL}/LearningMaterialController/preview/${materialId}`
 }
 
 const addBlock = (blockType: TrainingContentBlock['blockType']) => {
@@ -738,5 +739,84 @@ onMounted(load)
   border-radius: 6px;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ===== 手机端优化：白板编辑 ===== */
+@media (max-width: 768px) {
+  .whiteboard-page {
+    padding: 12px 12px 32px;
+  }
+
+  /* 顶部固定，保存随手可点 */
+  .whiteboard-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: linear-gradient(180deg, #f8fafc 0%, rgba(248,250,252,0.92) 100%);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    backdrop-filter: blur(8px);
+  }
+
+  .page-title { font-size: 18px; }
+  .subtitle { font-size: 12px; }
+  .btn-save { width: 100%; padding: 12px 14px; border-radius: 10px; }
+
+  /* 工具栏改成横向滚动，避免换行挤压 */
+  .toolbar-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+  }
+  .toolbar-strip::-webkit-scrollbar { display: none; }
+  .tool-btn {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+
+  .blocks-list { gap: 12px; }
+  .block-body { padding: 12px; }
+
+  /* 块操作按钮更好点 */
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .text-input {
+    min-height: 140px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .file-preview { flex-direction: column; align-items: stretch; }
+  .preview-img { max-width: 100%; max-height: 220px; }
+  .btn-change, .btn-pick { width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; }
+
+  /* 选资料弹窗全屏抽屉 */
+  .dialog-overlay { align-items: flex-end; }
+  .dialog {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+  }
+  .dialog-body { max-height: calc(92vh - 120px); }
+
+  .pick-toolbar .form-input { width: 100%; min-width: 0; }
+  .pick-toolbar .btn { width: 100%; padding: 10px 12px; border-radius: 10px; }
+  .upload-label { width: 100%; text-align: center; padding: 10px 12px; border-radius: 10px; }
+
+  .material-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 12px;
+  }
+  .mat-type, .mat-size { font-size: 12px; }
 }
 </style>

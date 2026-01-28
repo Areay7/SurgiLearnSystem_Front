@@ -2,7 +2,12 @@
   <div class="main-layout">
     <header class="header">
       <div class="header-content">
-        <h1 class="logo">外科护理主管护师培训学习系统 V1.0</h1>
+        <div class="header-left">
+          <button class="menu-btn" type="button" @click="toggleSidebar" aria-label="打开菜单">
+            ☰
+          </button>
+          <h1 class="logo">外科护理主管护师培训学习系统 V1.0</h1>
+        </div>
         <div class="user-info">
           <span>欢迎，{{ displayName }}</span>
           <button @click="goToProfile" class="profile-btn">个人主页</button>
@@ -12,6 +17,8 @@
     </header>
     
     <div class="container">
+      <!-- 手机端侧边栏遮罩 -->
+      <div v-if="isMobile && sidebarCollapsed" class="sidebar-overlay" @click="closeSidebar"></div>
       <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
         <nav class="nav-menu">
           <div class="menu-section">
@@ -123,6 +130,8 @@ const sidebarCollapsed = ref(false)
 const authStore = useAuthStore()
 const router = useRouter()
 
+const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
+
 const displayName = computed(() => {
   return authStore.nickname || authStore.userPhone || '管理员'
 })
@@ -133,11 +142,20 @@ const isAdmin = computed(() => {
 
 const goToProfile = () => {
   router.push('/profile')
+  closeSidebar()
 }
 
 const handleLogout = () => {
   authStore.logout()
   router.push('/login')
+}
+
+const toggleSidebar = () => {
+  // 手机端：collapsed=true 表示侧边栏滑出
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+const closeSidebar = () => {
+  if (isMobile.value) sidebarCollapsed.value = false
 }
 
 // 页面加载时获取用户信息
@@ -179,11 +197,34 @@ onMounted(async () => {
   height: 68px;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.menu-btn {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
 .logo {
   font-size: 19px;
   font-weight: 500;
   margin: 0;
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-info {
@@ -325,6 +366,7 @@ onMounted(async () => {
     z-index: 200;
     height: 100%;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    transition: left 0.25s ease;
   }
   
   .sidebar.collapsed {
@@ -332,12 +374,45 @@ onMounted(async () => {
     width: 260px;
   }
   
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background: rgba(0,0,0,0.45);
+  }
+
   .main-content {
     width: 100%;
   }
   
   .logo {
     font-size: 16px;
+    max-width: 50vw;
+  }
+
+  .menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header {
+    padding: 0 12px;
+  }
+
+  .user-info {
+    gap: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .profile-btn, .logout-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .content-wrapper {
+    padding: 12px;
   }
 }
 </style>

@@ -77,7 +77,54 @@
       
       <!-- 表格展示 -->
       <div class="table-container" v-if="!loading">
-        <table class="data-table">
+        <!-- 手机端：考试卡片列表 -->
+        <div v-if="isMobile" class="mobile-exam-list">
+          <div v-for="(row, index) in exams" :key="row.id || index" class="mobile-exam-card">
+            <div class="me-header">
+              <div class="me-title">
+                <div class="name">{{ row.examName || '-' }}</div>
+                <div class="sub">
+                  <span class="id">ID: {{ row.examId || row.id || '-' }}</span>
+                  <span class="type">{{ row.examType || '-' }}</span>
+                </div>
+              </div>
+              <input type="checkbox" :value="row.id" v-model="selectedIds" />
+            </div>
+
+            <div class="me-row">
+              <span class="label">时间</span>
+              <span class="value">{{ formatDate(row.examDate) }} {{ row.startTime || '' }}-{{ row.endTime || '' }}</span>
+            </div>
+            <div class="me-row">
+              <span class="label">时长</span>
+              <span class="value">{{ row.duration || 0 }} 分钟</span>
+            </div>
+            <div class="me-row">
+              <span class="label">总分/及格</span>
+              <span class="value">{{ row.totalScore || 0 }} / {{ row.passScore || 0 }}</span>
+            </div>
+            <div class="me-row">
+              <span class="label">题量</span>
+              <span class="value">{{ getQuestionCount(row.questionIds) }}</span>
+            </div>
+
+            <div class="me-row">
+              <span class="label">状态</span>
+              <span class="status-badge" :class="getStatusClass(row.status)">{{ row.status || '未开始' }}</span>
+            </div>
+
+            <div class="me-actions">
+              <button class="btn primary" @click="openEditDialog(row)">编辑</button>
+              <button class="btn" @click="openSelectQuestionsDialog(row)">选择题目</button>
+              <button class="btn" v-if="row.status === '进行中' || row.status === '未开始'" @click="startExam(row)">开始考试</button>
+              <button class="btn danger" @click="handleDeleteSingle(row)">删除</button>
+            </div>
+          </div>
+          <div v-if="exams.length === 0" class="mobile-empty">暂无数据</div>
+        </div>
+
+        <!-- 桌面端：原表格 -->
+        <table v-else class="data-table">
           <thead>
             <tr>
               <th width="50">
@@ -446,6 +493,8 @@ const previewQuestionData = ref<QuestionBank | null>(null)
 
 const exams = ref<Exam[]>([])
 const selectedIds = ref<number[]>([])
+
+const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
 
 const currentPage = ref(1)
 const pageSize = ref(10)

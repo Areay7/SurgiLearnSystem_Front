@@ -10,8 +10,11 @@ export default defineConfig({
     }
   },
   server: {
+    // 允许局域网其他设备访问（不只本机 localhost）
+    host: '0.0.0.0',
     port: 3000,
-    open: true
+    open: true,
+    strictPort: true
   }
 })
 

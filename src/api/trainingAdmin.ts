@@ -57,3 +57,24 @@ export function saveTrainingContentBlocks(trainingId: number, items: TrainingCon
   })
 }
 
+export interface TrainingContentBlockProgress {
+  id?: number
+  trainingId: number
+  blockId: number
+  studentId: number
+  blockType?: string
+  viewed?: number // 1-已浏览 0-未浏览
+  viewDuration?: number // 浏览时长（秒）
+  playProgress?: number // 播放进度（百分比），用于视频
+  scrollProgress?: number // 滚动进度（百分比），用于PDF
+  downloaded?: number // 1-已下载 0-未下载，用于文件
+}
+
+export function reportBlockProgress(data: TrainingContentBlockProgress): Promise<ApiResponse<Training>> {
+  return request({
+    url: '/TrainingProgressController/reportBlock',
+    method: 'post',
+    data
+  })
+}
+

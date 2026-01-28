@@ -45,7 +45,12 @@
           <div class="wb-block-label">{{ blockLabel(block.blockType) }}</div>
           <div class="wb-block-body">
             <template v-if="block.blockType === 'text'">
-              <div class="wb-text" v-html="textToHtml(block.content)"></div>
+              <div
+                :ref="el => setTextBlockRef(block.id!, el)"
+                class="wb-text"
+                v-html="textToHtml(block.content)"
+                @scroll="onTextScroll(block.id!)"
+              ></div>
             </template>
             <template v-else-if="block.materialId && contentBlockMaterialMap[block.materialId]">
               <template v-if="block.blockType === 'image'">
@@ -53,19 +58,56 @@
                   :src="previewUrlFor(block.materialId)"
                   class="wb-preview-img"
                   alt="预览"
-                  @click="openPreview(block.materialId!, 'image')"
+                  @click="onImageClick(block.id!, block.materialId!)"
                 />
                 <div class="wb-meta">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</div>
               </template>
-              <template v-else>
+              <template v-else-if="block.blockType === 'video'">
+                <div class="wb-video-container">
+                  <div class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</div>
+                  <div class="wb-video-tools">
+                    <label class="wb-speed">
+                      倍速
+                      <select class="wb-speed-select" :value="videoRates[block.id!] || 1" @change="onVideoRateChange(block.id!, $event)">
+                        <option :value="0.5">0.5×</option>
+                        <option :value="0.75">0.75×</option>
+                        <option :value="1">1×</option>
+                        <option :value="1.25">1.25×</option>
+                        <option :value="1.5">1.5×</option>
+                        <option :value="2">2×</option>
+                      </select>
+                    </label>
+                    <button class="btn wb-fullscreen" type="button" @click="toggleVideoFullscreen(block.id!)">全屏</button>
+                  </div>
+                  <video
+                    :ref="el => setVideoRef(block.id!, el)"
+                    :src="previewUrlFor(block.materialId)"
+                    controls
+                    playsinline
+                    webkit-playsinline
+                    class="wb-video"
+                    preload="metadata"
+                    @play="onVideoPlay(block.id!)"
+                    @ended="onVideoEnded(block.id!)"
+                    @timeupdate="onVideoTimeUpdate(block.id!, $event)"
+                  ></video>
+                </div>
+              </template>
+              <template v-else-if="block.blockType === 'pdf'">
+                <div class="wb-pdf-container">
+                  <div class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</div>
+                  <iframe
+                    :ref="el => setPdfRef(block.id!, el)"
+                    :src="previewUrlFor(block.materialId)"
+                    class="wb-pdf-iframe"
+                    @load="onPdfLoad(block.id!)"
+                  ></iframe>
+                </div>
+              </template>
+              <template v-else-if="block.blockType === 'file'">
                 <div class="wb-file-row">
                   <span class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</span>
-                  <template v-if="block.blockType === 'file'">
-                    <a :href="downloadUrlFor(block.materialId)" target="_blank" class="btn" @click="report(block.materialId!, 100, 1, 0)">下载</a>
-                  </template>
-                  <template v-else>
-                    <button class="btn" @click="openPreview(block.materialId!, block.blockType === 'pdf' ? 'pdf' : block.blockType === 'video' ? 'video' : 'other')">预览</button>
-                  </template>
+                  <a :href="downloadUrlFor(block.materialId)" target="_blank" class="btn" @click="onFileDownload(block.id!)">下载</a>
                 </div>
               </template>
             </template>
@@ -193,15 +235,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { API_BASE_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { getTrainingDetail, getTrainingMaterials, getTrainingMaterialProgressList, getTrainingProgress, reportTrainingMaterialProgress, startTraining } from '@/api/training'
 import type { Training, TrainingMaterial, TrainingProgress } from '@/api/training'
 import { getMaterialsList, type LearningMaterial } from '@/api/materials'
-import { setTrainingMaterials, getTrainingContentBlocks } from '@/api/trainingAdmin'
-import type { TrainingContentBlock } from '@/api/trainingAdmin'
+import { setTrainingMaterials, getTrainingContentBlocks, reportBlockProgress } from '@/api/trainingAdmin'
+import type { TrainingContentBlock, TrainingContentBlockProgress } from '@/api/trainingAdmin'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -404,8 +446,9 @@ const textToHtml = (s?: string) => {
   if (!s) return ''
   return s.replace(/\n/g, '<br/>')
 }
+// 白板内嵌预览必须使用“稳定 URL”，否则每次响应式更新都会导致 iframe/video 重新加载形成循环
 const previewUrlFor = (materialId: number) =>
-  `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
+  `${API_BASE_URL}/LearningMaterialController/preview/${materialId}`
 const downloadUrlFor = (materialId: number) =>
   `${API_BASE_URL}/LearningMaterialController/download/${materialId}`
 
@@ -418,11 +461,15 @@ const guessTypeByExt = (ext?: string) => {
 }
 
 const openPreview = async (materialId: number, suggestedType?: 'pdf' | 'image' | 'video' | 'other') => {
+  // 弹窗预览可加时间戳避免缓存
   const url = `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
   previewUrl.value = url
   previewType.value = suggestedType ?? 'other'
   showPreview.value = true
-  await report(materialId, 1, 0, 0)
+  // 对于非白板模式，仍然使用旧的资料进度上报
+  if (contentBlocks.value.length === 0) {
+    await report(materialId, 1, 0, 0)
+  }
 }
 
 const markDone = async (materialId: number) => {
@@ -457,7 +504,253 @@ const closePreview = () => {
   previewType.value = 'other'
 }
 
+// 内容块浏览检测和进度上报
+const textBlockRefs = ref<Record<number, HTMLElement>>({})
+const textBlockViewTimes = ref<Record<number, number>>({})
+const textBlockTimers = ref<Record<number, NodeJS.Timeout>>({})
+
+const setTextBlockRef = (blockId: number, el: HTMLElement | null) => {
+  if (el) {
+    textBlockRefs.value[blockId] = el
+    // 开始计时
+    if (!textBlockTimers.value[blockId]) {
+      textBlockViewTimes.value[blockId] = 0
+      textBlockTimers.value[blockId] = setInterval(() => {
+        textBlockViewTimes.value[blockId] = (textBlockViewTimes.value[blockId] || 0) + 1
+        // 每3秒上报一次
+        if (textBlockViewTimes.value[blockId] >= 3) {
+          reportBlockProgressData(blockId, 'text', { viewed: 1, viewDuration: textBlockViewTimes.value[blockId] }, true)
+          if (textBlockTimers.value[blockId]) {
+            clearInterval(textBlockTimers.value[blockId])
+            delete textBlockTimers.value[blockId]
+          }
+        }
+      }, 1000)
+    }
+  }
+}
+
+const onTextScroll = (blockId: number) => {
+  const el = textBlockRefs.value[blockId]
+  if (!el) return
+  const scrollPercent = Math.round(((el.scrollTop + el.clientHeight) / el.scrollHeight) * 100)
+  // 滚动到底部（>= 95%）时标记完成
+  if (scrollPercent >= 95) {
+    reportBlockProgressData(blockId, 'text', { viewed: 1, viewDuration: textBlockViewTimes.value[blockId] || 3 }, true)
+    if (textBlockTimers.value[blockId]) {
+      clearInterval(textBlockTimers.value[blockId])
+      delete textBlockTimers.value[blockId]
+    }
+  }
+}
+
+const onImageClick = (blockId: number, materialId: number) => {
+  // 点击图片放大查看时标记为已完成
+  reportBlockProgressData(blockId, 'image', { viewed: 1, viewDuration: 1 }, true)
+  openPreview(materialId, 'image')
+}
+
+// 视频和PDF直接预览相关
+const videoRefs = ref<Record<number, HTMLVideoElement>>({})
+const videoRates = ref<Record<number, number>>({})
+const pdfRefs = ref<Record<number, HTMLIFrameElement>>({})
+const videoPlayedBlocks = ref<Record<number, boolean>>({})
+const pdfViewTimers = ref<Record<number, NodeJS.Timeout>>({})
+const pdfScrollCheckTimers = ref<Record<number, NodeJS.Timeout>>({})
+const pdfViewStartTimes = ref<Record<number, number>>({})
+const pdfLastReportedProgress = ref<Record<number, number>>({})
+
+const setVideoRef = (blockId: number, el: HTMLVideoElement | null) => {
+  if (el) {
+    videoRefs.value[blockId] = el
+    // 应用已选倍速（默认 1x）
+    const r = videoRates.value[blockId] ?? 1
+    try { el.playbackRate = r } catch {}
+  }
+}
+
+const onVideoRateChange = (blockId: number, e: Event) => {
+  const v = Number((e.target as HTMLSelectElement).value || 1)
+  videoRates.value[blockId] = v
+  const el = videoRefs.value[blockId]
+  if (el) {
+    try { el.playbackRate = v } catch {}
+  }
+}
+
+const toggleVideoFullscreen = async (blockId: number) => {
+  const el = videoRefs.value[blockId]
+  if (!el) return
+  try {
+    // iOS Safari：优先使用原生全屏
+    const anyEl: any = el as any
+    if (anyEl.webkitEnterFullscreen) {
+      anyEl.webkitEnterFullscreen()
+      return
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+    } else if (el.requestFullscreen) {
+      await el.requestFullscreen()
+    }
+  } catch {
+    // 忽略失败（部分浏览器策略限制）
+  }
+}
+
+const setPdfRef = (blockId: number, el: HTMLIFrameElement | null) => {
+  if (el) {
+    pdfRefs.value[blockId] = el
+  }
+}
+
+const onVideoPlay = (blockId: number) => {
+  // 视频开始播放时标记为已浏览
+  if (!videoPlayedBlocks.value[blockId]) {
+    reportBlockProgressData(blockId, 'video', { viewed: 1, playProgress: 0 }, false)
+    videoPlayedBlocks.value[blockId] = true
+  }
+}
+
+const videoProgressThrottle = ref<Record<number, NodeJS.Timeout>>({})
+const onVideoTimeUpdate = (blockId: number, event: Event) => {
+  const video = event.target as HTMLVideoElement
+  if (video && video.duration) {
+    const progress = Math.round((video.currentTime / video.duration) * 100)
+    // 节流：每2秒上报一次播放进度，避免频繁刷新
+    if (videoProgressThrottle.value[blockId]) {
+      clearTimeout(videoProgressThrottle.value[blockId])
+    }
+    videoProgressThrottle.value[blockId] = setTimeout(() => {
+      reportBlockProgressData(blockId, 'video', { viewed: 1, playProgress: progress }, false)
+      delete videoProgressThrottle.value[blockId]
+    }, 2000)
+  }
+}
+
+const onVideoEnded = (blockId: number) => {
+  // 视频播放完成时标记为已完成
+  reportBlockProgressData(blockId, 'video', { viewed: 1, playProgress: 100 }, true)
+}
+
+const onPdfLoad = (blockId: number) => {
+  // PDF加载完成时标记为已浏览，记录开始时间
+  pdfViewStartTimes.value[blockId] = Date.now()
+  pdfLastReportedProgress.value[blockId] = 0
+  reportBlockProgressData(blockId, 'pdf', { viewed: 1, scrollProgress: 0 }, false)
+  
+  // 开始检查PDF滚动（每2秒检查一次，减少频率）
+  if (!pdfScrollCheckTimers.value[blockId]) {
+    pdfScrollCheckTimers.value[blockId] = setInterval(() => {
+      checkPdfScroll(blockId)
+    }, 2000) // 改为2秒检查一次
+  }
+  
+  // 如果PDF浏览超过30秒，也标记为完成（防止无法检测滚动的情况）
+  if (!pdfViewTimers.value[blockId]) {
+    pdfViewTimers.value[blockId] = setTimeout(() => {
+      const viewDuration = Math.floor((Date.now() - (pdfViewStartTimes.value[blockId] || Date.now())) / 1000)
+      reportBlockProgressData(blockId, 'pdf', { viewed: 1, scrollProgress: 100, viewDuration }, true)
+      if (pdfScrollCheckTimers.value[blockId]) {
+        clearInterval(pdfScrollCheckTimers.value[blockId])
+        delete pdfScrollCheckTimers.value[blockId]
+      }
+    }, 30000) // 30秒
+  }
+}
+
+const checkPdfScroll = (blockId: number) => {
+  const iframe = pdfRefs.value[blockId]
+  if (!iframe || !iframe.contentWindow) return
+  
+  try {
+    const doc = iframe.contentWindow.document
+    if (!doc || !doc.documentElement) return
+    
+    const scrollTop = iframe.contentWindow.scrollY || doc.documentElement.scrollTop || 0
+    const scrollHeight = doc.documentElement.scrollHeight || doc.body.scrollHeight || 0
+    const clientHeight = iframe.contentWindow.innerHeight || doc.documentElement.clientHeight || 0
+    
+    if (scrollHeight > 0) {
+      const scrollPercent = Math.round(((scrollTop + clientHeight) / scrollHeight) * 100)
+      
+      // 滚动到底部（>= 95%）时标记完成
+      if (scrollPercent >= 95) {
+        const viewDuration = Math.floor((Date.now() - (pdfViewStartTimes.value[blockId] || Date.now())) / 1000)
+        reportBlockProgressData(blockId, 'pdf', { viewed: 1, scrollProgress: 100, viewDuration }, true)
+        if (pdfScrollCheckTimers.value[blockId]) {
+          clearInterval(pdfScrollCheckTimers.value[blockId])
+          delete pdfScrollCheckTimers.value[blockId]
+        }
+        if (pdfViewTimers.value[blockId]) {
+          clearTimeout(pdfViewTimers.value[blockId])
+          delete pdfViewTimers.value[blockId]
+        }
+      } else {
+        // 节流上报：只在进度变化超过5%时才上报，避免频繁刷新
+        const lastReported = pdfLastReportedProgress.value[blockId] || 0
+        if (Math.abs(scrollPercent - lastReported) >= 5) {
+          const viewDuration = Math.floor((Date.now() - (pdfViewStartTimes.value[blockId] || Date.now())) / 1000)
+          reportBlockProgressData(blockId, 'pdf', { viewed: 1, scrollProgress: scrollPercent, viewDuration }, false)
+          pdfLastReportedProgress.value[blockId] = scrollPercent
+        }
+      }
+    }
+  } catch (e) {
+    // 跨域限制，无法检测滚动，依赖30秒超时
+  }
+}
+
+const onFileDownload = (blockId: number) => {
+  // 下载时立即标记为已完成
+  reportBlockProgressData(blockId, 'file', { downloaded: 1 }, true)
+}
+
+// 进度刷新节流：避免频繁刷新总进度
+const progressRefreshTimer = ref<NodeJS.Timeout | null>(null)
+const reportBlockProgressData = async (blockId: number, blockType: string, data: Partial<TrainingContentBlockProgress>, shouldRefreshProgress: boolean = true) => {
+  if (!trainingId.value || !studentId.value) return
+  try {
+    await reportBlockProgress({
+      trainingId: trainingId.value,
+      blockId,
+      studentId: studentId.value,
+      blockType,
+      ...data
+    } as TrainingContentBlockProgress)
+    
+    // 只在需要时刷新总进度，并使用节流避免频繁刷新
+    if (shouldRefreshProgress) {
+      if (progressRefreshTimer.value) {
+        clearTimeout(progressRefreshTimer.value)
+      }
+      progressRefreshTimer.value = setTimeout(async () => {
+        try {
+          const p = await getTrainingProgress(trainingId.value, studentId.value)
+          progress.value = p.data || null
+        } catch {
+          // 刷新失败不阻塞 UI
+        }
+        progressRefreshTimer.value = null
+      }, 1000) // 1秒内只刷新一次
+    }
+  } catch {
+    // 上报失败不阻塞 UI
+  }
+}
+
 onMounted(load)
+
+onUnmounted(() => {
+  // 清理所有定时器
+  Object.values(textBlockTimers.value).forEach(timer => clearInterval(timer))
+  Object.values(pdfScrollCheckTimers.value).forEach(timer => clearInterval(timer))
+  Object.values(pdfViewTimers.value).forEach(timer => clearTimeout(timer))
+  Object.values(videoProgressThrottle.value).forEach(timer => clearTimeout(timer))
+  if (progressRefreshTimer.value) {
+    clearTimeout(progressRefreshTimer.value)
+  }
+})
 </script>
 
 <style scoped>
@@ -509,10 +802,77 @@ onMounted(load)
 .wb-block { background: #f8fafc; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
 .wb-block-label { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text-secondary); background: #eef2f7; }
 .wb-block-body { padding: 12px 16px; }
-.wb-text { font-size: 14px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+.wb-text { font-size: 14px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; padding: 8px; }
 .wb-preview-img { max-width: 100%; max-height: 280px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color); }
 .wb-meta { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
 .wb-file-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.wb-file-name { flex: 1; min-width: 0; font-size: 14px; color: var(--text-primary); }
+.wb-file-name { flex: 1; min-width: 0; font-size: 14px; color: var(--text-primary); margin-bottom: 8px; }
+.wb-video-container, .wb-pdf-container { display: flex; flex-direction: column; gap: 8px; }
+.wb-video { width: 100%; max-height: 400px; border-radius: 6px; border: 1px solid var(--border-color); }
+.wb-pdf-iframe { width: 100%; height: 600px; border-radius: 6px; border: 1px solid var(--border-color); }
+
+.wb-video-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wb-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.wb-speed-select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  font-size: 14px;
+}
+.wb-fullscreen {
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+/* ===== 手机端专属优化：培训详情 ===== */
+@media (max-width: 768px) {
+  .page-header { gap: 10px; }
+  .page-title { font-size: 18px; }
+  .sub { font-size: 12px; }
+
+  .header-actions { width: 100%; justify-content: space-between; }
+  .btn-primary { padding: 10px 14px; font-size: 14px; border-radius: 10px; }
+  .badge { font-size: 12px; }
+
+  .progress-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .bar { height: 12px; }
+
+  .section-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .section-actions { width: 100%; flex-wrap: wrap; }
+  .btn-editor, .btn-config { width: 100%; text-align: center; padding: 10px 12px; border-radius: 10px; }
+
+  .whiteboard-view { gap: 12px; }
+  .wb-block-body { padding: 12px; }
+
+  /* 文字块：更适合手机阅读 */
+  .wb-text { max-height: 55vh; padding: 10px; font-size: 14px; }
+
+  /* 图片：点击区域更大 */
+  .wb-preview-img { max-height: 220px; }
+
+  /* 视频：固定一个更舒服的高度 */
+  .wb-video { max-height: 240px; }
+
+  /* PDF：手机上不要 600px，改为视口高度 */
+  .wb-pdf-iframe { height: 70vh; }
+
+  /* 文件行：按钮占满一行更好点 */
+  .wb-file-row { flex-direction: column; align-items: stretch; }
+  .wb-file-name { margin-bottom: 0; }
+  .wb-file-row .btn { width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+}
 </style>
 

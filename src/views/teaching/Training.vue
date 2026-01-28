@@ -389,12 +389,76 @@ onMounted(load)
 @media (max-width: 768px) {
   .training-cards {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
   
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .page-title {
+    font-size: 18px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  .training-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .card-title {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .card-status {
+    flex-shrink: 0;
+  }
+
+  .card-description {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .card-info {
+    font-size: 12px;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .card-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn-view, .btn-join {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .page-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 14px;
+    border-radius: 10px;
   }
 }
 </style>

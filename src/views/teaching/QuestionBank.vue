@@ -65,9 +65,58 @@
         </div>
       </div>
       
-      <!-- 表格展示 -->
+      <!-- 表格展示：桌面端表格，手机端卡片列表 -->
       <div class="table-container" v-if="!loading">
-        <table class="data-table">
+        <!-- 手机端：题目卡片列表 -->
+        <div v-if="isMobile" class="mobile-question-list">
+          <div
+            v-for="(row, index) in questions"
+            :key="row.id || index"
+            class="mobile-question-card"
+          >
+            <div class="mq-header">
+              <div class="mq-title">
+                <div class="mq-line1">
+                  <span class="badge-type" :class="getQuestionTypeClass(row.questionType)">
+                    {{ getQuestionTypeName(row.questionType) }}
+                  </span>
+                  <span class="badge-diff" :class="getDifficultyClass(row.difficulty)">
+                    {{ row.difficulty || '-' }}
+                  </span>
+                </div>
+                <div class="mq-line2">
+                  <span class="qid">#{{ (currentPage - 1) * pageSize + index + 1 }}</span>
+                  <span class="score">分值：{{ row.score || 0 }}</span>
+                </div>
+                <div class="mq-line3">
+                  <span class="qid">ID: {{ row.questionId || row.id || '-' }}</span>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                :value="row.id"
+                v-model="selectedIds"
+              />
+            </div>
+            <div class="mq-content">
+              {{ row.questionContent || '-' }}
+            </div>
+            <div class="mq-footer">
+              <span class="time">{{ formatDateTime(row.createTime) }}</span>
+              <div class="mq-actions">
+                <button class="btn-link" @click="openPreviewDialog(row)">预览</button>
+                <button class="btn-link" @click="openEditDialog(row)">编辑</button>
+                <button class="btn-link btn-danger" @click="handleDeleteSingle(row)">删除</button>
+              </div>
+            </div>
+          </div>
+          <div v-if="questions.length === 0" class="mobile-empty">
+            暂无数据
+          </div>
+        </div>
+
+        <!-- 桌面端：原有表格 -->
+        <table v-else class="data-table">
           <thead>
             <tr>
               <th width="50">
@@ -422,6 +471,8 @@ const importInputRef = ref<HTMLInputElement | null>(null)
 
 const questions = ref<QuestionBank[]>([])
 const selectedIds = ref<number[]>([])
+
+const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -1291,5 +1342,90 @@ const handleImportChange = async (e: Event) => {
     width: 95%;
     max-height: 95vh;
   }
+
+  /* 头部按钮在手机上改为整行 */
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .btn-primary,
+  .btn-action {
+    width: 100%;
+    text-align: center;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  /* 搜索区域更紧凑 */
+  .search-form {
+    padding: 14px;
+  }
+  .form-item {
+    min-width: 0;
+  }
+  .form-actions {
+    width: 100%;
+    gap: 8px;
+  }
+  .btn-query, .btn-reset {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  /* 手机卡片列表样式 */
+  .table-container {
+    box-shadow: none;
+    background: transparent;
+    overflow: visible;
+  }
+  .mobile-question-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .mobile-question-card {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .mq-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .mq-title { flex: 1; min-width: 0; }
+  .mq-line1 { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mq-line2, .mq-line3 {
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .mq-content {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .mq-footer {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .mq-actions { display: flex; gap: 10px; }
+  .btn-link { font-size: 14px; padding: 8px 10px; text-decoration: none; border: 1px solid var(--border-color); border-radius: 10px; }
+  .btn-link.btn-danger { border-color: rgba(231, 76, 60, 0.35); color: var(--danger-color); }
 }
 </style>
