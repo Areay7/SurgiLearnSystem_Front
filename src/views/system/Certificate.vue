@@ -115,13 +115,13 @@
 
                     <div class="sheet-footer">
                       <div class="footer-left">
+                        <img v-if="stampPreviewUrl" class="stamp" :src="stampPreviewUrl" alt="stamp" />
                         <div class="org">{{ form.organization || 'SurgiLearn 培训中心' }}</div>
                         <div class="issue-date">{{ formatCNDate(issueDateStr) }}</div>
                       </div>
                     </div>
 
-                    <!-- 固定盖章位置：在地址与日期正上方居右 -->
-                    <img v-if="stampPreviewUrl" class="stamp" :src="stampPreviewUrl" alt="stamp" />
+                    <!-- 盖章位置：与机构左边对齐，并覆盖在机构/日期上方 -->
                     <div class="border-corner tl"></div>
                     <div class="border-corner tr"></div>
                     <div class="border-corner bl"></div>
@@ -185,11 +185,11 @@
                 </div>
                 <div class="sheet-footer">
                   <div class="footer-left">
+                    <img v-if="previewStampUrl" class="stamp" :src="previewStampUrl" alt="stamp" />
                     <div class="org">{{ previewItem?.organization || 'SurgiLearn 培训中心' }}</div>
                     <div class="issue-date">{{ formatDate(previewItem?.issueDate) }}</div>
                   </div>
                 </div>
-                <img v-if="previewStampUrl" class="stamp" :src="previewStampUrl" alt="stamp" />
                 <div class="border-corner tl"></div>
                 <div class="border-corner tr"></div>
                 <div class="border-corner bl"></div>
@@ -415,22 +415,28 @@ const printCertificate = (c: CertificateIssue) => {
   const html = `
   <html><head><title>证书</title>
   <style>
-    @page{margin:12mm;}
-    body{margin:0;padding:0;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#f3f4f6;}
-    .sheet{width:900px;height:620px;margin:20px auto;position:relative;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.18);border-radius:16px;overflow:hidden;}
-    .sheet-inner{position:relative;height:100%;padding:28px;background:linear-gradient(180deg,#fffdf6 0%,#ffffff 35%,#fffdf6 100%);}
-    .sheet-inner:before{content:'';position:absolute;top:18px;left:18px;right:18px;bottom:46px;border:3px solid #c7a45d;border-radius:14px;}
-    .corner{position:absolute;width:34px;height:34px;border:3px solid #c7a45d;}
-    .corner.tl{left:18px;top:18px;border-right:none;border-bottom:none;border-radius:14px 0 0 0;}
-    .corner.tr{right:18px;top:18px;border-left:none;border-bottom:none;border-radius:0 14px 0 0;}
-    .corner.bl{left:18px;bottom:18px;border-right:none;border-top:none;border-radius:0 0 0 14px;}
-    .corner.br{right:18px;bottom:18px;border-left:none;border-top:none;border-radius:0 0 14px 0;}
-    .title{position:relative;font-size:54px;letter-spacing:16px;text-align:center;margin-top:20px;color:#2c3e50;font-weight:800;}
-    .body{position:relative;margin-top:60px;font-size:22px;line-height:1.9;color:#2c3e50;padding:0 80px;}
-    .line2{display:inline-block;margin-left:5em;}
-    .footer{position:absolute;left:80px;right:80px;bottom:70px;font-size:18px;color:#2c3e50;text-align:right;}
-    .org{margin-bottom:8px;}
-    .stamp{position:absolute;right:140px;bottom:95px;width:170px;opacity:0.9;filter:drop-shadow(0 8px 10px rgba(0,0,0,0.15));}
+    @page{margin:15mm 12mm 25mm 12mm;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{margin:0;padding:0;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#fff;}
+    .sheet{width:850px;height:560px;margin:0 auto;position:relative;background:#fff;page-break-inside:avoid;}
+    .sheet-inner{position:relative;height:100%;padding:24px;background:#fff;}
+    .sheet-inner:before{content:'';position:absolute;top:16px;left:16px;right:16px;bottom:28px;border:3px solid #c7a45d;border-radius:12px;}
+    .corner{position:absolute;width:30px;height:30px;border:3px solid #c7a45d;}
+    .corner.tl{left:16px;top:16px;border-right:none;border-bottom:none;border-radius:12px 0 0 0;}
+    .corner.tr{right:16px;top:16px;border-left:none;border-bottom:none;border-radius:0 12px 0 0;}
+    .corner.bl{left:16px;bottom:28px;border-right:none;border-top:none;border-radius:0 0 0 12px;}
+    .corner.br{right:16px;bottom:28px;border-left:none;border-top:none;border-radius:0 0 12px 0;}
+    .title{position:relative;font-size:46px;letter-spacing:10px;text-align:center;margin-top:0;color:#2c3e50;font-weight:800;}
+    .body{position:relative;margin-top:20px;font-size:18px;line-height:1.4;color:#2c3e50;padding:0 70px;}
+    .line2{display:inline-block;margin-left:4.5em;}
+    .footer{position:absolute;left:70px;right:70px;bottom:105px;font-size:17px;color:#2c3e50;text-align:right;}
+    .org{margin-bottom:6px;}
+    /* 盖章：与右下角机构/日期右对齐，不覆盖文字 */
+    .stamp{position:absolute;right:70px;bottom:155px;width:160px;opacity:0.9;filter:drop-shadow(0 6px 8px rgba(0,0,0,0.15));}
+    @media print{
+      body{background:#fff;}
+      .sheet{box-shadow:none;margin:0 auto;}
+    }
   </style></head><body onload="window.print()">
     <div class="sheet">
       <div class="sheet-inner">
@@ -516,22 +522,23 @@ onMounted(load)
 .recipient-type{max-width:110px;}
 .stamp-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
 .stamp-hint{font-size:12px; color:var(--text-secondary);}
+.hidden{display:none !important;}
 
 /* certificate preview */
 .preview-wrap{background:#fff; border:1px solid var(--border-color); border-radius:14px; padding:14px;}
 .preview-scale{display:flex; justify-content:center;}
 .certificate-sheet{width:860px; aspect-ratio:1123/794; background:#fff; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,0.12); overflow:hidden;}
-.sheet-inner{position:relative; height:100%; padding:28px; background:linear-gradient(180deg,#fffdf6 0%, #ffffff 35%, #fffdf6 100%);}
+.sheet-inner{position:relative; height:100%; padding:28px; background:#fff;}
 .sheet-inner:before{content:''; position:absolute; inset:18px; border:3px solid #c7a45d; border-radius:14px;}
-.sheet-inner:after{content:'SurgiLearn'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:86px; letter-spacing:6px; color:rgba(199,164,93,0.10); transform:rotate(-12deg); font-weight:800; pointer-events:none;}
 .sheet-title{position:relative; text-align:center; font-size:44px; letter-spacing:16px; margin-top:18px; color:#2c3e50; font-weight:800;}
 .sheet-body{position:relative; margin-top:44px; padding:0 50px; font-size:18px; line-height:1.9; color:#2c3e50;}
 .sheet-body .name,.sheet-body .date,.sheet-body .course{font-weight:800;}
 .sheet-body .line2{display:inline-block; margin-left:5em;}
 .custom-text{white-space:pre-wrap; margin-top:12px; padding:10px 12px; background:rgba(99,102,241,0.06); border:1px dashed rgba(99,102,241,0.35); border-radius:12px;}
-.sheet-footer{position:absolute; left:70px; right:70px; bottom:70px; display:flex; justify-content:flex-end; color:#2c3e50; font-weight:600;}
-.footer-left{display:flex; flex-direction:column; align-items:flex-end; gap:8px; text-align:right;}
-.stamp{position:absolute; right:110px; bottom:90px; width:150px; opacity:0.9; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15));}
+.sheet-footer{position:absolute; right:70px; bottom:70px; color:#2c3e50; font-weight:600;}
+.footer-left{position:relative; width:320px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+/* 盖章：与机构/日期同一 X 轴，右边对齐（不覆盖文字） */
+.stamp{position:absolute; right:0; bottom:58px; width:150px; opacity:0.9; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15)); pointer-events:none;}
 .border-corner{position:absolute; width:34px; height:34px; border:3px solid #c7a45d;}
 .border-corner.tl{left:18px; top:18px; border-right:none; border-bottom:none; border-radius:14px 0 0 0;}
 .border-corner.tr{right:18px; top:18px; border-left:none; border-bottom:none; border-radius:0 14px 0 0;}

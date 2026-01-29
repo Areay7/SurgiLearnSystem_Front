@@ -133,22 +133,28 @@ const printCertificate = (c: CertificateIssue) => {
   const html = `
   <html><head><title>证书</title>
   <style>
-    @page{margin:12mm;}
-    body{margin:0;padding:0;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#f3f4f6;}
-    .sheet{width:900px;height:620px;margin:20px auto;position:relative;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,0.18);border-radius:16px;overflow:hidden;}
-    .sheet-inner{position:relative;height:100%;padding:28px;background:linear-gradient(180deg,#fffdf6 0%,#ffffff 35%,#fffdf6 100%);}
-    .sheet-inner:before{content:'';position:absolute;top:18px;left:18px;right:18px;bottom:46px;border:3px solid #c7a45d;border-radius:14px;}
-    .corner{position:absolute;width:34px;height:34px;border:3px solid #c7a45d;}
-    .corner.tl{left:18px;top:18px;border-right:none;border-bottom:none;border-radius:14px 0 0 0;}
-    .corner.tr{right:18px;top:18px;border-left:none;border-bottom:none;border-radius:0 14px 0 0;}
-    .corner.bl{left:18px;bottom:18px;border-right:none;border-top:none;border-radius:0 0 0 14px;}
-    .corner.br{right:18px;bottom:18px;border-left:none;border-top:none;border-radius:0 0 14px 0;}
-    .title{position:relative;font-size:54px;letter-spacing:16px;text-align:center;margin-top:20px;color:#2c3e50;font-weight:800;}
-    .body{position:relative;margin-top:60px;font-size:22px;line-height:1.9;color:#2c3e50;padding:0 80px;}
-    .line2{display:inline-block;margin-left:5em;}
-    .footer{position:absolute;left:80px;right:80px;bottom:70px;font-size:18px;color:#2c3e50;text-align:right;}
-    .org{margin-bottom:8px;}
-    .stamp{position:absolute;right:140px;bottom:95px;width:170px;opacity:0.9;filter:drop-shadow(0 8px 10px rgba(0,0,0,0.15));}
+    @page{margin:15mm 12mm 25mm 12mm;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{margin:0;padding:0;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;background:#fff;}
+    .sheet{width:850px;height:560px;margin:0 auto;position:relative;background:#fff;page-break-inside:avoid;}
+    .sheet-inner{position:relative;height:100%;padding:24px;background:#fff;}
+    .sheet-inner:before{content:'';position:absolute;top:16px;left:16px;right:16px;bottom:28px;border:3px solid #c7a45d;border-radius:12px;}
+    .corner{position:absolute;width:30px;height:30px;border:3px solid #c7a45d;}
+    .corner.tl{left:16px;top:16px;border-right:none;border-bottom:none;border-radius:12px 0 0 0;}
+    .corner.tr{right:16px;top:16px;border-left:none;border-bottom:none;border-radius:0 12px 0 0;}
+    .corner.bl{left:16px;bottom:28px;border-right:none;border-top:none;border-radius:0 0 0 12px;}
+    .corner.br{right:16px;bottom:28px;border-left:none;border-top:none;border-radius:0 0 12px 0;}
+    .title{position:relative;font-size:46px;letter-spacing:10px;text-align:center;margin-top:0;color:#2c3e50;font-weight:800;}
+    .body{position:relative;margin-top:20px;font-size:18px;line-height:1.4;color:#2c3e50;padding:0 70px;}
+    .line2{display:inline-block;margin-left:4.5em;}
+    .footer{position:absolute;left:70px;right:70px;bottom:105px;font-size:17px;color:#2c3e50;text-align:right;}
+    .org{margin-bottom:6px;}
+    /* 盖章：与右下角机构/日期右对齐，不覆盖文字 */
+    .stamp{position:absolute;right:70px;bottom:155px;width:160px;opacity:0.9;filter:drop-shadow(0 6px 8px rgba(0,0,0,0.15));}
+    @media print{
+      body{background:#fff;}
+      .sheet{box-shadow:none;margin:0 auto;}
+    }
   </style></head><body onload="window.print()">
     <div class="sheet">
       <div class="sheet-inner">
