@@ -149,7 +149,7 @@ const routes: RouteRecordRaw[] = [
         path: 'students',
         name: 'Students',
         component: () => import('@/views/teaching/Students.vue'),
-        meta: { title: '学员记录管理', requiresAdmin: true }
+        meta: { title: '用户管理', requiresAdmin: true }
       },
       {
         path: 'progress',

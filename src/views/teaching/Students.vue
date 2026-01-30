@@ -1,9 +1,9 @@
 <template>
   <div class="students-page">
     <div class="page-header">
-      <h1 class="page-title">学员记录管理</h1>
+      <h1 class="page-title">用户管理</h1>
       <div class="header-actions">
-        <button class="btn-primary" @click="openAddDialog">新增学员</button>
+        <button class="btn-primary" @click="openAddDialog">新增用户</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
     </div>
@@ -13,10 +13,10 @@
       <div class="search-form">
         <div class="form-row">
           <div class="form-item">
-            <label>学员姓名：</label>
+            <label>姓名：</label>
             <input 
               type="text" 
-              placeholder="请输入学员姓名" 
+              placeholder="请输入姓名" 
               class="form-input" 
               v-model="searchForm.studentName" 
             />
@@ -78,7 +78,7 @@
               <th width="60">序号</th>
               <th width="180">操作</th>
               <th width="100">ID</th>
-              <th width="120">学员姓名</th>
+              <th width="120">姓名</th>
               <th width="120">手机号</th>
               <th width="120">员工编号</th>
               <th width="100">用户类型</th>
@@ -102,6 +102,13 @@
               <td>
                 <button class="btn-link" @click="openEditDialog(row)">编辑</button>
                 <button class="btn-link btn-danger" @click="handleDeleteSingle(row)">删除</button>
+                <button
+                  v-if="isAdmin"
+                  class="btn-link"
+                  @click="openResetPasswordDialog(row)"
+                >
+                  重置密码
+                </button>
               </td>
               <td>{{ row.studentId || row.id || '-' }}</td>
               <td>{{ row.studentName || '-' }}</td>
@@ -139,7 +146,7 @@
     <div v-if="showDialog" class="dialog-overlay" @click="showDialog = false">
       <div class="dialog edit-dialog" @click.stop>
         <div class="dialog-header">
-          <h3>{{ dialogMode === 'add' ? '新增学员' : '编辑学员' }}</h3>
+          <h3>{{ dialogMode === 'add' ? '新增用户' : '编辑用户' }}</h3>
           <button class="close-btn" @click="showDialog = false">×</button>
         </div>
         <div class="dialog-body">
@@ -150,11 +157,11 @@
                 <input type="text" class="form-input" :value="editForm.id ?? '-'" disabled />
               </div>
               <div class="form-group">
-                <label>学员姓名 *</label>
+                <label>姓名 *</label>
                 <input
                   type="text"
                   class="form-input"
-                  placeholder="请输入学员姓名"
+                  placeholder="请输入姓名"
                   v-model="editForm.studentName"
                   maxlength="100"
                   :disabled="saving"
@@ -269,6 +276,36 @@
         </div>
       </div>
     </div>
+
+    <!-- 重置密码对话框 -->
+    <div v-if="showResetDialog" class="dialog-overlay" @click="showResetDialog = false">
+      <div class="dialog" @click.stop style="max-width: 420px;">
+        <div class="dialog-header">
+          <h3>重置密码</h3>
+          <button class="close-btn" @click="showResetDialog = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="reset-hint">为 <strong>{{ resetTargetName }}</strong>（{{ resetTargetPhone }}）设置新密码</p>
+          <div class="form-group">
+            <label>新密码 *</label>
+            <input
+              v-model="resetPassword"
+              type="password"
+              placeholder="请输入新密码（至少6位）"
+              class="form-input"
+              maxlength="50"
+              :disabled="resetting"
+            />
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showResetDialog = false" :disabled="resetting">取消</button>
+          <button class="btn-confirm" @click="confirmResetPassword" :disabled="resetting">
+            {{ resetting ? '重置中...' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -276,6 +313,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { Students } from '@/api/students'
 import { addStudent, deleteStudent, getStudentsList, updateStudent } from '@/api/students'
+import { useAuthStore } from '@/stores/auth'
+import { adminResetPassword } from '@/api/auth'
+
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.userType === 1)
 
 const loading = ref(false)
 const saving = ref(false)
@@ -301,6 +343,11 @@ const searchForm = reactive({
 })
 
 const showDialog = ref(false)
+const showResetDialog = ref(false)
+const resetTargetPhone = ref('')
+const resetTargetName = ref('')
+const resetPassword = ref('')
+const resetting = ref(false)
 const dialogMode = ref<'add' | 'edit'>('add')
 const editForm = reactive<Students>({
   studentName: '',
@@ -406,7 +453,7 @@ const openEditDialog = (row: Students) => {
 // 保存
 const handleSave = async () => {
   if (!editForm.studentName?.trim()) {
-    alert('请输入学员姓名')
+    alert('请输入姓名')
     return
   }
   if (!editForm.phone?.trim()) {
@@ -454,8 +501,50 @@ const handleSave = async () => {
 // 删除单个
 const handleDeleteSingle = (row: Students) => {
   if (!row.id) return
-  if (confirm(`确定要删除学员 "${row.studentName}" 吗？`)) {
+  if (confirm(`确定要删除用户 "${row.studentName || row.phone}" 吗？`)) {
     handleDelete([row.id])
+  }
+}
+
+// 打开重置密码对话框
+const openResetPasswordDialog = (row: Students) => {
+  if (!row.phone?.trim()) {
+    alert('该用户没有手机号，无法重置密码（密码与登录手机号关联）')
+    return
+  }
+  resetTargetPhone.value = row.phone
+  resetTargetName.value = row.studentName || row.phone
+  resetPassword.value = ''
+  showResetDialog.value = true
+}
+
+// 确认重置密码
+const confirmResetPassword = async () => {
+  const pwd = resetPassword.value?.trim()
+  if (!pwd) {
+    alert('请输入新密码')
+    return
+  }
+  if (pwd.length < 6) {
+    alert('密码长度至少 6 位')
+    return
+  }
+  resetting.value = true
+  try {
+    const res = await adminResetPassword({
+      phone: resetTargetPhone.value,
+      newPassword: pwd
+    })
+    if (res.code === 200 || res.code === 0) {
+      alert('密码重置成功')
+      showResetDialog.value = false
+    } else {
+      alert(res.msg || '密码重置失败')
+    }
+  } catch (e: any) {
+    alert(e.message || '密码重置失败')
+  } finally {
+    resetting.value = false
   }
 }
 
@@ -895,6 +984,12 @@ onMounted(() => {
 .form-group label {
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+.reset-hint {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--text-regular);
 }
 
 .dialog-footer {

@@ -19,6 +19,12 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
+// 管理员重置密码请求参数
+export interface AdminResetPasswordRequest {
+  phone: string
+  newPassword: string
+}
+
 // API响应类型
 export interface ApiResponse<T = any> {
   code: number
@@ -60,6 +66,17 @@ export function register(data: RegisterRequest): Promise<ApiResponse> {
 export function changePassword(data: ChangePasswordRequest): Promise<ApiResponse> {
   return request({
     url: '/auth/changePassword',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 管理员重置任意用户密码
+ */
+export function adminResetPassword(data: AdminResetPasswordRequest): Promise<ApiResponse> {
+  return request({
+    url: '/auth/adminResetPassword',
     method: 'post',
     data
   })

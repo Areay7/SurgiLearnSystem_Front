@@ -6,15 +6,15 @@
       <div class="stat-card">
         <div class="stat-icon">👨‍🎓</div>
         <div class="stat-content">
-          <div class="stat-value">1,234</div>
-          <div class="stat-label">学员总数</div>
+          <div class="stat-value">{{ stats.studentCount }}</div>
+          <div class="stat-label">用户总数</div>
         </div>
       </div>
       
       <div class="stat-card">
         <div class="stat-icon">📚</div>
         <div class="stat-content">
-          <div class="stat-value">56</div>
+          <div class="stat-value">{{ stats.trainingCount }}</div>
           <div class="stat-label">课程总数</div>
         </div>
       </div>
@@ -22,15 +22,31 @@
       <div class="stat-card">
         <div class="stat-icon">📝</div>
         <div class="stat-content">
-          <div class="stat-value">892</div>
+          <div class="stat-value">{{ stats.questionCount }}</div>
           <div class="stat-label">题库题目</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">📹</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stats.videoCount }}</div>
+          <div class="stat-label">视频讲座</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">📁</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stats.resourceCount }}</div>
+          <div class="stat-label">共享资源</div>
         </div>
       </div>
       
       <div class="stat-card">
         <div class="stat-icon">📊</div>
         <div class="stat-content">
-          <div class="stat-value">45</div>
+          <div class="stat-value">{{ stats.examOngoingCount }}</div>
           <div class="stat-label">进行中考试</div>
         </div>
       </div>
@@ -39,11 +55,10 @@
     <div class="content-grid">
       <div class="content-card">
         <h2>最近活动</h2>
-        <ul class="activity-list">
-          <li>新学员 张三 注册成功</li>
-          <li>课程《外科护理基础》已发布</li>
-          <li>考试《护理技能考核》已完成</li>
-          <li>讲师 李老师 分配了新课程</li>
+        <div v-if="loading" class="loading-state">加载中...</div>
+        <ul v-else class="activity-list">
+          <li v-for="(item, idx) in activities" :key="idx">{{ item.title }}</li>
+          <li v-if="activities.length === 0" class="empty-hint">暂无活动</li>
         </ul>
       </div>
       
@@ -61,6 +76,41 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { getDashboardStats, getDashboardActivities, type DashboardStats, type DashboardActivity } from '@/api/dashboard'
+
+const loading = ref(true)
+const stats = ref<DashboardStats>({
+  studentCount: 0,
+  trainingCount: 0,
+  questionCount: 0,
+  videoCount: 0,
+  resourceCount: 0,
+  examOngoingCount: 0
+})
+const activities = ref<DashboardActivity[]>([])
+
+const loadData = async () => {
+  loading.value = true
+  try {
+    const [statsRes, activitiesRes] = await Promise.all([
+      getDashboardStats(),
+      getDashboardActivities(5)
+    ])
+    if (statsRes.code === 200 || statsRes.code === 0) {
+      stats.value = (statsRes.data || stats.value) as DashboardStats
+    }
+    if (activitiesRes.code === 200 || activitiesRes.code === 0) {
+      activities.value = (activitiesRes.data || []) as DashboardActivity[]
+    }
+  } catch (e) {
+    console.error('加载首页数据失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadData)
 </script>
 
 <style scoped>
@@ -161,6 +211,16 @@
 
 .activity-list li:last-child {
   border-bottom: none;
+}
+
+.loading-state {
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+.empty-hint {
+  color: var(--text-secondary) !important;
 }
 
 .quick-links {

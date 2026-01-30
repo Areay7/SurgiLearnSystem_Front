@@ -105,7 +105,7 @@
             </router-link>
             <router-link to="/students" class="nav-item">
               <span class="nav-icon">👨‍🎓</span>
-              <span class="nav-text">学员记录管理</span>
+              <span class="nav-text">用户管理</span>
             </router-link>
             <router-link to="/progress" class="nav-item">
               <span class="nav-icon">📈</span>
