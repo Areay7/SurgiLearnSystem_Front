@@ -114,9 +114,10 @@ export interface StudentInfo {
   phone?: string
   email?: string
   gender?: string
-  birthDate?: string
   department?: string
   position?: string
+  title?: string
+  level?: string
   employeeId?: string
   userType?: number // 1-学员 2-讲师 3-其他(管理员)
   status?: string
@@ -144,9 +145,10 @@ export function updateStudentInfo(data: {
   studentName?: string
   email?: string
   gender?: string
-  birthDate?: string
   department?: string
   position?: string
+  title?: string
+  level?: string
   employeeId?: string
   userType?: number
   status?: string

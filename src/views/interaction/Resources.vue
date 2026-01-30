@@ -147,9 +147,10 @@
             <input
               v-model="uploadForm.resourceName"
               type="text"
-              placeholder="请输入资源名称"
+              placeholder="请先选择文件，资源名称将自动填充"
               class="form-input"
               maxlength="160"
+              readonly
             />
           </div>
           <div class="form-group">
@@ -549,21 +550,23 @@ const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     selectedFile.value = target.files[0]
+    // 自动填充资源名称为文件名（包含扩展名）
+    uploadForm.value.resourceName = selectedFile.value.name
   }
 }
 
 // 上传资源
 const handleUpload = async () => {
+  if (!selectedFile.value) {
+    alert('请选择要上传的文件')
+    return
+  }
   if (!uploadForm.value.resourceName?.trim()) {
-    alert('请输入资源名称')
+    alert('请先选择文件，资源名称将自动填充')
     return
   }
   if (!uploadForm.value.resourceType) {
     alert('请选择资源类型')
-    return
-  }
-  if (!selectedFile.value) {
-    alert('请选择要上传的文件')
     return
   }
   
@@ -1264,6 +1267,12 @@ onMounted(() => {
   background: #f5f7fa;
   color: var(--text-secondary);
   cursor: not-allowed;
+}
+
+.form-input[readonly] {
+  background: #f9fafb;
+  color: var(--text-primary);
+  cursor: default;
 }
 
 .file-info {

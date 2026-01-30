@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { FILE_REQUEST_TIMEOUT } from '@/config/api'
 
 // 资料实体
 export interface LearningMaterial {
@@ -102,12 +103,23 @@ export function uploadMaterial(formData: FormData): Promise<ApiResponse<Learning
   } as any)
 }
 
-// 下载资料
+// 下载资料（使用长超时，避免局域网大文件报“无法连接”）
 export function downloadMaterial(id: number): Promise<Blob> {
   return request({
     url: `/LearningMaterialController/download/${id}`,
     method: 'get',
-    responseType: 'blob'
+    responseType: 'blob',
+    timeout: FILE_REQUEST_TIMEOUT
+  } as any)
+}
+
+// 预览资料（blob，带鉴权，本机/他机均可用；长超时）
+export function getPreviewBlob(id: number): Promise<Blob> {
+  return request({
+    url: `/LearningMaterialController/preview/${id}`,
+    method: 'get',
+    responseType: 'blob',
+    timeout: FILE_REQUEST_TIMEOUT
   } as any)
 }
 

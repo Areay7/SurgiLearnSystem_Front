@@ -97,24 +97,24 @@
   </div>
 
   <!-- 预览弹窗 -->
-  <div v-if="showPreviewDialog" class="dialog-overlay" @click="showPreviewDialog = false">
+  <div v-if="showPreviewDialog" class="dialog-overlay" @click="closePreviewDialog">
     <div class="dialog preview-dialog" @click.stop>
       <div class="dialog-header">
         <h3>{{ previewTitle }}</h3>
-        <button class="close-btn" @click="showPreviewDialog = false">×</button>
+        <button class="close-btn" @click="closePreviewDialog">×</button>
       </div>
       <div class="dialog-body">
         <div v-if="previewType === 'image'" class="preview-container">
-          <img :src="previewUrl" alt="预览图片" class="preview-image" />
+          <img :src="previewUrl" alt="预览图片" class="preview-image" @error="handlePreviewError" />
         </div>
         <div v-else-if="previewType === 'video'" class="preview-container">
-          <video controls class="preview-video" preload="metadata">
+          <video controls class="preview-video" preload="metadata" @error="handlePreviewError">
             <source :src="previewUrl" type="video/mp4" />
             您的浏览器不支持视频预览，请点击下方链接在新窗口中打开。
           </video>
         </div>
         <div v-else-if="previewType === 'pdf'" class="preview-container">
-          <iframe :src="previewUrl" class="preview-iframe" type="application/pdf"></iframe>
+          <iframe :src="previewUrl" class="preview-iframe" type="application/pdf" @load="handleIframeLoad" @error="handlePreviewError"></iframe>
         </div>
         <div v-else class="preview-container">
           <p>该文件类型暂不支持在线预览，请下载后查看。</p>
@@ -122,7 +122,7 @@
       </div>
       <div class="dialog-footer">
         <a v-if="previewUrl" :href="previewUrl" target="_blank" class="btn-open-new">在新窗口中打开</a>
-        <button class="btn-cancel" @click="showPreviewDialog = false">关闭</button>
+        <button class="btn-cancel" @click="closePreviewDialog">关闭</button>
       </div>
     </div>
   </div>
@@ -193,11 +193,12 @@ import { API_BASE_URL } from '@/config/api'
 import type { LearningMaterial } from '@/api/materials'
 import {
   deleteMaterial,
-  downloadMaterial,
+  getPreviewBlob,
   getMaterialsList,
   uploadMaterial,
   updateMaterial,
-  incrementView
+  incrementView,
+  incrementDownload
 } from '@/api/materials'
 
 const authStore = useAuthStore()
@@ -414,25 +415,36 @@ const handleDelete = async (ids: number[]) => {
   }
 }
 
-const download = async (row: LearningMaterial) => {
+// 下载资料：使用直接URL（绕过axios/CORS问题，支持跨机下载）
+const download = (row: LearningMaterial) => {
   if (!row.id) return
-  try {
-    const blob = await downloadMaterial(row.id)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = row.originalName || '资料'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  } catch (e: any) {
-    alert(e.message || '下载失败')
-  }
+  // 直接打开下载链接，后端设置了 Content-Disposition: attachment
+  const url = `${API_BASE_URL}/LearningMaterialController/download/${row.id}`
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  // 记录下载次数
+  incrementDownload(row.id).catch(() => {})
 }
 
+const closePreviewDialog = () => {
+  showPreviewDialog.value = false
+  // 如果是blob URL，释放内存
+  if (previewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(previewUrl.value)
+  }
+  previewUrl.value = ''
+  currentPreviewId.value = 0
+}
+
+const currentPreviewId = ref(0)
+
+// 预览资料：先用直接URL（其他PC可用），如果加载失败再回退到blob方式（本机可用）
 const preview = async (row: LearningMaterial) => {
-  // 预览：在弹窗中内嵌展示 pdf / 图片 / 视频
   if (!row.id || !row.fileType) {
     alert('无法预览该文件')
     return
@@ -449,13 +461,41 @@ const preview = async (row: LearningMaterial) => {
     return
   }
   previewTitle.value = row.title || row.originalName || '资料预览'
-  // 加上时间戳避免浏览器用旧缓存（导致 304 和错误的 Content-Type）
+  currentPreviewId.value = row.id
+
+  // 使用直接URL（浏览器原生请求，无CORS问题，支持流式加载/Range请求）
   previewUrl.value = `${API_BASE_URL}/LearningMaterialController/preview/${row.id}?t=${Date.now()}`
   showPreviewDialog.value = true
+
   try {
     await incrementView(row.id)
   } catch {
     // 统计失败不影响预览
+  }
+}
+
+// 直接URL加载失败时，回退到blob方式（通过axios请求，本机可用）
+const handlePreviewError = async () => {
+  if (!currentPreviewId.value || previewUrl.value.startsWith('blob:')) return
+  try {
+    const blob = await getPreviewBlob(currentPreviewId.value)
+    previewUrl.value = URL.createObjectURL(blob)
+  } catch {
+    // 两种方式都失败
+  }
+}
+
+// PDF iframe 没有可靠的 error 事件，通过 load 事件检测是否真正加载成功
+const handleIframeLoad = (e: Event) => {
+  const iframe = e.target as HTMLIFrameElement
+  try {
+    // 如果 iframe 加载了空白页或错误页，尝试 blob 回退
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (doc && doc.body && doc.body.innerHTML === '') {
+      handlePreviewError()
+    }
+  } catch {
+    // 跨域无法访问 contentDocument，说明直接URL加载成功了（跨域的PDF正常渲染）
   }
 }
 

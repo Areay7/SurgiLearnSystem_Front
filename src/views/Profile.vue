@@ -89,16 +89,6 @@
                 </div>
                 
                 <div class="form-group">
-                  <label>出生日期</label>
-                  <input
-                    type="date"
-                    class="form-input"
-                    v-model="studentForm.birthDate"
-                    :disabled="saving"
-                  />
-                </div>
-                
-                <div class="form-group">
                   <label>用户类型</label>
                   <select class="form-input" v-model="studentForm.userType" :disabled="saving || !isAdmin">
                     <option :value="1">学员</option>
@@ -139,6 +129,30 @@
                 </div>
                 
                 <div class="form-group">
+                  <label>职称</label>
+                  <select class="form-input" v-model="studentForm.title" :disabled="saving">
+                    <option value="">请选择</option>
+                    <option value="护士">护士</option>
+                    <option value="护师">护师</option>
+                    <option value="主管护师">主管护师</option>
+                    <option value="副主任护师">副主任护师</option>
+                    <option value="主任护师">主任护师</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
+                  <label>层级</label>
+                  <select class="form-input" v-model="studentForm.level" :disabled="saving">
+                    <option value="">请选择</option>
+                    <option value="N0">N0</option>
+                    <option value="N1">N1</option>
+                    <option value="N2">N2</option>
+                    <option value="N3">N3</option>
+                    <option value="N4">N4</option>
+                  </select>
+                </div>
+                
+                <div class="form-group">
                   <label>状态</label>
                   <select class="form-input" v-model="studentForm.status" :disabled="saving">
                     <option value="正常">正常</option>
@@ -146,15 +160,7 @@
                   </select>
                 </div>
                 
-                <div class="form-group">
-                  <label>入学日期</label>
-                  <input
-                    type="date"
-                    class="form-input"
-                    v-model="studentForm.enrollmentDate"
-                    :disabled="saving"
-                  />
-                </div>
+                <div class="form-group"></div>
               </div>
             </div>
             
@@ -198,9 +204,10 @@ const studentForm = ref<StudentInfo>({
   phone: authStore.userPhone || '',
   email: '',
   gender: '',
-  birthDate: '',
   department: '',
   position: '',
+  title: '',
+  level: '',
   employeeId: '',
   userType: 1, // 默认学员
   status: '正常',
@@ -240,9 +247,10 @@ const loadUserInfo = async () => {
           phone: student.phone || authStore.userPhone || '',
           email: student.email || '',
           gender: student.gender || '',
-          birthDate: student.birthDate ? student.birthDate.split('T')[0] : '',
           department: student.department || '',
           position: student.position || '',
+          title: student.title || '',
+          level: student.level || '',
           employeeId: student.employeeId || '',
           userType: student.userType || 1,
           status: student.status || '正常',
@@ -297,9 +305,10 @@ const handleSave = async () => {
       studentName: studentForm.value.studentName.trim(),
       email: studentForm.value.email?.trim() || undefined,
       gender: studentForm.value.gender || undefined,
-      birthDate: studentForm.value.birthDate ? new Date(studentForm.value.birthDate).toISOString() : undefined,
       department: studentForm.value.department?.trim() || undefined,
       position: studentForm.value.position?.trim() || undefined,
+      title: studentForm.value.title || undefined,
+      level: studentForm.value.level || undefined,
       employeeId: studentForm.value.employeeId?.trim() || undefined,
       status: studentForm.value.status || '正常',
       enrollmentDate: studentForm.value.enrollmentDate ? new Date(studentForm.value.enrollmentDate).toISOString() : undefined

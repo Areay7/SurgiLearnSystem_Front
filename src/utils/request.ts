@@ -37,7 +37,7 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse) => {
-    // 如果是文件下载（blob类型），直接返回
+    // 如果是文件下载（blob类型），直接返回 data，与 bak_front 一致
     if (response.config.responseType === 'blob') {
       return response.data
     }
@@ -83,7 +83,7 @@ service.interceptors.response.use(
       
       // 尝试从响应数据中获取错误信息
       if (data && data.msg) {
-        message = data.ms
+        message = data.msg
       } else if (data && data.message) {
         message = data.message
       } else {
@@ -107,6 +107,8 @@ service.interceptors.response.use(
             message = `请求失败: ${status}`
         }
       }
+    } else if (error.code === 'ECONNABORTED') {
+      message = '请求超时，请检查网络或稍后重试（大文件下载/预览已使用较长超时）'
     } else if (error.request) {
       // 请求已发出，但没有收到响应
       message = '网络错误，无法连接到服务器。请检查：\n1. 后端服务是否启动\n2. API地址是否正确\n3. 网络连接是否正常'

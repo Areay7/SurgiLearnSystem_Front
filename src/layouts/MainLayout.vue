@@ -87,6 +87,10 @@
               <span class="nav-icon">📅</span>
               <span class="nav-text">课程安排设置</span>
             </router-link>
+            <router-link v-if="isAdmin" to="/teaching-class" class="nav-item">
+              <span class="nav-icon">🏫</span>
+              <span class="nav-text">班级管理</span>
+            </router-link>
             <router-link to="/videos" class="nav-item">
               <span class="nav-icon">🎬</span>
               <span class="nav-text">视频讲座播放</span>

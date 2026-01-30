@@ -9,9 +9,6 @@
         <span class="badge" :class="progress?.status === '已完成' ? 'ok' : 'muted'">
           {{ progress?.status || '未开始' }}
         </span>
-        <button class="btn-primary" @click="handleStart" :disabled="starting">
-          {{ starting ? '初始化中...' : '开始学习' }}
-        </button>
       </div>
     </div>
 
@@ -252,6 +249,7 @@ const trainingId = computed(() => Number(route.params.id))
 const studentId = computed(() => Number(authStore.userPhone || '0'))
 const studentName = computed(() => authStore.nickname || authStore.userPhone || '')
 const isAdmin = computed(() => (authStore.userType || 0) === 1)
+const isInstructor = computed(() => (authStore.userType || 0) === 2)
 
 const training = ref<Training | null>(null)
 const materials = ref<TrainingMaterial[]>([])
@@ -708,8 +706,15 @@ const onFileDownload = (blockId: number) => {
 
 // 进度刷新节流：避免频繁刷新总进度
 const progressRefreshTimer = ref<NodeJS.Timeout | null>(null)
+
+// 仅在当前页面处于活动状态时上报（防止切到其它页面或标签后仍然频繁请求）
+const isPageVisible = ref(true)
+const handleVisibilityChange = () => {
+  isPageVisible.value = !document.hidden
+}
 const reportBlockProgressData = async (blockId: number, blockType: string, data: Partial<TrainingContentBlockProgress>, shouldRefreshProgress: boolean = true) => {
-  if (!trainingId.value || !studentId.value) return
+  // 只有在当前培训详情页处于前台、且存在有效用户信息时才上报
+  if (!trainingId.value || !studentId.value || !isPageVisible.value || document.hidden) return
   try {
     await reportBlockProgress({
       trainingId: trainingId.value,
@@ -739,9 +744,14 @@ const reportBlockProgressData = async (blockId: number, blockType: string, data:
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  isPageVisible.value = !document.hidden
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  load()
+})
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   // 清理所有定时器
   Object.values(textBlockTimers.value).forEach(timer => clearInterval(timer))
   Object.values(pdfScrollCheckTimers.value).forEach(timer => clearInterval(timer))

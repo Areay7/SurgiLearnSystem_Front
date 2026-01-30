@@ -2,7 +2,12 @@
   <div class="training-page">
     <div class="page-header">
       <h1 class="page-title">护理培训</h1>
-      <button class="btn-primary" @click="openCreateDialog">创建培训</button>
+      <div class="page-actions" v-if="canCreate">
+        <button class="btn-primary" @click="openCreateDialog">创建培训</button>
+        <button class="btn-danger" @click="toggleDeleteMode">
+          {{ deleteMode ? '完成删除' : '删除培训' }}
+        </button>
+      </div>
     </div>
     
     <div class="training-content">
@@ -21,8 +26,24 @@
             <span>📅 时间：{{ formatDate(item.startDate) }} ~ {{ formatDate(item.endDate) }}</span>
           </div>
           <div class="card-actions">
-            <button class="btn-view" @click="goDetail(item)">查看详情</button>
-            <button class="btn-join" @click="goDetail(item)">开始学习</button>
+            <!-- 学员：查看 + 开始学习 -->
+            <template v-if="!isAdmin && !isInstructor">
+              <button class="btn-view" @click="goDetail(item)">查看详情</button>
+              <button class="btn-join" @click="goDetail(item)">开始学习</button>
+            </template>
+            <!-- 管理员 / 讲师：编辑 + 编辑内容 + 查看进度 -->
+            <template v-else>
+              <button class="btn-view" @click="openEdit(item)">编辑培训</button>
+              <button class="btn-join" @click="goEditContent(item)">编辑内容</button>
+              <button class="btn-join" @click="goProgress(item)">学习进度</button>
+            </template>
+            <button
+              v-if="deleteMode && canCreate"
+              class="btn-delete-card"
+              @click="removeOne(item)"
+            >
+              删除
+            </button>
           </div>
         </div>
       </div>
@@ -35,11 +56,11 @@
     </div>
   </div>
 
-  <!-- 创建培训（简单版） -->
+  <!-- 创建/编辑培训 -->
   <div v-if="showDialog" class="dialog-overlay" @click="showDialog = false">
     <div class="dialog" @click.stop>
       <div class="dialog-header">
-        <h3>创建培训</h3>
+        <h3>{{ dialogMode === 'add' ? '创建培训' : '编辑培训' }}</h3>
         <button class="close-btn" @click="showDialog = false">×</button>
       </div>
       <div class="dialog-body">
@@ -51,6 +72,24 @@
           <div class="form-group">
             <label>培训类型</label>
             <input class="form-input" v-model="form.trainingType" placeholder="例如：外科护理/基础护理" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>开始日期 *</label>
+              <input type="date" class="form-input" v-model="form.startDate" />
+            </div>
+            <div class="form-group">
+              <label>结束日期</label>
+              <input type="date" class="form-input" v-model="form.endDate" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>讲师 *</label>
+            <div class="form-row-inline">
+              <input class="form-input" v-model="form.instructorName" :disabled="!isAdmin" placeholder="讲师姓名" />
+              <button v-if="isAdmin" class="btn" @click="openPickInstructor">选择讲师</button>
+            </div>
+            <div class="hint-small" v-if="!isAdmin">由当前登录讲师账号自动作为讲师</div>
           </div>
           <div class="form-group">
             <label>描述</label>
@@ -65,30 +104,75 @@
       </div>
     </div>
   </div>
+
+  <!-- 选择讲师 -->
+  <div v-if="showPick" class="dialog-overlay" @click="closePick">
+    <div class="dialog" @click.stop>
+      <div class="dialog-header">
+        <h3>选择讲师</h3>
+        <button class="close-btn" @click="closePick">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="filters">
+          <input class="search-input" v-model="pickSearch" placeholder="搜索讲师姓名/手机号/员工号..." @keyup.enter="loadPickList" />
+          <button class="btn" @click="loadPickList" :disabled="pickLoading">查询</button>
+        </div>
+        <div class="pick-list">
+          <div class="pick-row" v-for="s in pickList" :key="s.id" @click="chooseInstructor(s)">
+            <div class="pick-name">{{ s.studentName || '-' }}</div>
+            <div class="pick-sub">手机号：{{ s.phone || '-' }}</div>
+          </div>
+          <div v-if="!pickLoading && pickList.length===0" class="empty">暂无讲师</div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn-cancel" @click="closePick">关闭</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getTrainingList } from '@/api/training'
-import { addTraining } from '@/api/trainingAdmin'
+import { addTraining, updateTraining, deleteTraining } from '@/api/trainingAdmin'
 import type { Training } from '@/api/training'
+import { useAuthStore } from '@/stores/auth'
+import { getStudentsList, type Students } from '@/api/students'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const loading = ref(false)
 const saving = ref(false)
 const list = ref<Training[]>([])
 const page = ref(1)
 const pageSize = ref(10)
+const deleteMode = ref(false)
 
 const showDialog = ref(false)
-const form = reactive<Training>({
+const dialogMode = ref<'add'|'edit'>('add')
+const form = reactive<Training & { startDate?: string; endDate?: string; instructorId?: string; instructorName?: string }>({
   trainingName: '',
   trainingType: '',
   description: '',
-  status: '未开始'
+  status: '未开始',
+  startDate: '',
+  endDate: '',
+  instructorId: '',
+  instructorName: ''
 })
+
+const currentStudentRecord = ref<Students | null>(null)
+const isAdmin = computed(() => (auth.userType || 0) === 1)
+const isInstructor = computed(() => (currentStudentRecord.value?.userType || 0) === 2)
+const canCreate = computed(() => isAdmin.value || isInstructor.value)
+
+const showPick = ref(false)
+const pickSearch = ref('')
+const pickLoading = ref(false)
+const pickList = ref<Students[]>([])
 
 const load = async () => {
   loading.value = true
@@ -119,8 +203,73 @@ const goDetail = (item: Training) => {
 }
 
 const openCreateDialog = () => {
-  Object.assign(form, { trainingName: '', trainingType: '', description: '', status: '未开始' })
+  dialogMode.value = 'add'
+  Object.assign(form, {
+    id: undefined,
+    trainingName: '',
+    trainingType: '',
+    description: '',
+    status: '未开始',
+    startDate: '',
+    endDate: '',
+    instructorId: '',
+    instructorName: ''
+  })
+  // 讲师：默认讲师为自己
+  if (!isAdmin.value && isInstructor.value && currentStudentRecord.value) {
+    form.instructorId = String(currentStudentRecord.value.id)
+    form.instructorName = currentStudentRecord.value.studentName || currentStudentRecord.value.phone || ''
+  }
   showDialog.value = true
+}
+
+const toggleDeleteMode = () => {
+  deleteMode.value = !deleteMode.value
+}
+
+const removeOne = async (item: Training) => {
+  if (!item.id) return
+  if (!confirm(`确定要删除培训「${item.trainingName || '-'}」吗？该培训的学习记录可能也会受影响。`)) {
+    return
+  }
+  try {
+    const res = await deleteTraining(String(item.id))
+    if (res.code === 0 || res.code === 200) {
+      alert('删除成功')
+      load()
+    } else {
+      alert(res.msg || '删除失败')
+    }
+  } catch (e: any) {
+    alert(e.message || '删除失败')
+  }
+}
+
+const openEdit = (item: Training) => {
+  if (!item.id) return
+  dialogMode.value = 'edit'
+  Object.assign(form, {
+    id: item.id,
+    trainingName: item.trainingName || '',
+    trainingType: item.trainingType || '',
+    description: item.description || '',
+    status: item.status || '未开始',
+    startDate: item.startDate ? String(item.startDate).substring(0, 10) : '',
+    endDate: item.endDate ? String(item.endDate).substring(0, 10) : '',
+    instructorId: item.instructorId || '',
+    instructorName: item.instructorName || ''
+  })
+  showDialog.value = true
+}
+
+const goProgress = (item: Training) => {
+  if (!item.id) return
+  router.push({ name: 'Progress', query: { trainingId: item.id } })
+}
+
+const goEditContent = (item: Training) => {
+  if (!item.id) return
+  router.push({ name: 'TrainingMaterialEditor', params: { id: item.id } })
 }
 
 const save = async () => {
@@ -128,11 +277,20 @@ const save = async () => {
     alert('请输入培训名称')
     return
   }
+  if (!form.startDate) {
+    alert('请选择开始日期')
+    return
+  }
+  if (!form.instructorName?.trim()) {
+    alert('请选择讲师')
+    return
+  }
   saving.value = true
   try {
-    const res = await addTraining(form)
+    const api = dialogMode.value === 'edit' ? updateTraining : addTraining
+    const res = await api(form)
     if (res.code === 0 || res.code === 200) {
-      alert('创建成功')
+      alert(dialogMode.value === 'edit' ? '保存成功' : '创建成功')
       showDialog.value = false
       page.value = 1
       load()
@@ -156,6 +314,42 @@ const formatDate = (s?: string) => {
 }
 
 onMounted(load)
+
+// 加载当前用户在 students 表中的记录（判断是否讲师）
+const loadCurrentStudent = async () => {
+  const phone = auth.userPhone || localStorage.getItem('userPhone') || ''
+  if (!phone) return
+  try {
+    const res = await getStudentsList({ page: 1, limit: 1, phone })
+    currentStudentRecord.value = (res.data && res.data.length > 0) ? res.data[0] : null
+  } catch {
+    currentStudentRecord.value = null
+  }
+}
+onMounted(loadCurrentStudent)
+
+const openPickInstructor = () => {
+  pickSearch.value = ''
+  showPick.value = true
+  loadPickList()
+}
+const closePick = () => { showPick.value = false }
+
+const loadPickList = async () => {
+  pickLoading.value = true
+  try {
+    const res = await getStudentsList({ page: 1, limit: 200, searchText: pickSearch.value || undefined, userType: 2 })
+    pickList.value = res.data || []
+  } finally {
+    pickLoading.value = false
+  }
+}
+
+const chooseInstructor = (s: Students) => {
+  form.instructorId = s.id ? String(s.id) : ''
+  form.instructorName = s.studentName || s.phone || ''
+  showPick.value = false
+}
 </script>
 
 <style scoped>
@@ -168,6 +362,12 @@ onMounted(load)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .page-title {
@@ -185,6 +385,21 @@ onMounted(load)
   cursor: pointer;
   font-size: 14px;
   transition: background 0.3s;
+}
+
+.btn-danger {
+  padding: 10px 20px;
+  background: #f56c6c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.3s;
+}
+
+.btn-danger:hover {
+  background: #f78989;
 }
 
 .btn-primary:hover {
@@ -278,6 +493,21 @@ onMounted(load)
   transition: all 0.3s;
 }
 
+.btn-delete-card {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #f56c6c;
+  background: #fff5f5;
+  color: #f56c6c;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn-delete-card:hover {
+  background: #fde2e2;
+}
+
 .btn-view {
   background: white;
   border: 1px solid var(--border-color);
@@ -369,6 +599,9 @@ onMounted(load)
 }
 .form { display: flex; flex-direction: column; gap: 12px; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-row { display:flex; gap:12px; }
+.form-row-inline{display:flex;gap:8px;align-items:center;}
+.hint-small{font-size:12px;color:var(--text-secondary);margin-top:4px;}
 .form-input {
   padding: 10px 14px;
   border: 1px solid var(--border-color);

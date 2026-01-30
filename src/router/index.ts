@@ -116,6 +116,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '课程安排设置' }
       },
       {
+        path: 'teaching-class',
+        name: 'TeachingClass',
+        component: () => import('@/views/teaching/TeachingClass.vue'),
+        meta: { title: '班级管理', requiresAdmin: true }
+      },
+      {
         path: 'videos',
         name: 'Videos',
         component: () => import('@/views/teaching/Videos.vue'),

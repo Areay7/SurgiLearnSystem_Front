@@ -19,5 +19,7 @@ const DEFAULT_API_BASE_URL = `http://${AUTO_HOST}:8080/api`
 
 export const API_BASE_URL = (ENV_API_BASE_URL && ENV_API_BASE_URL.trim()) ? ENV_API_BASE_URL.trim() : DEFAULT_API_BASE_URL
 
-// 请求超时时间（毫秒）
+// 普通请求超时（毫秒）
 export const REQUEST_TIMEOUT = 10000
+// 文件下载/预览流式请求超时（局域网大文件需更长时间，5 分钟）
+export const FILE_REQUEST_TIMEOUT = 300000
