@@ -5,6 +5,18 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, watch } from 'vue'
+import { useSystemConfigStore } from '@/stores/systemConfig'
+
+const systemConfig = useSystemConfigStore()
+
+onMounted(() => {
+  systemConfig.fetchDisplayConfig()
+})
+
+watch(() => systemConfig.systemName, (name) => {
+  document.title = name ? `${name} V1.0` : '外科护理主管护师培训学习系统 V1.0'
+}, { immediate: true })
 </script>
 
 <style>

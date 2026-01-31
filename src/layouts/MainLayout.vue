@@ -6,7 +6,7 @@
           <button class="menu-btn" type="button" @click="toggleSidebar" aria-label="打开菜单">
             ☰
           </button>
-          <h1 class="logo">外科护理主管护师培训学习系统 V1.0</h1>
+          <h1 class="logo">{{ systemConfig.systemName || '外科护理主管护师培训学习系统' }} V1.0</h1>
         </div>
         <div class="user-info">
           <span>欢迎，{{ displayName }}</span>
@@ -53,11 +53,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 import { useRouter, useRoute } from 'vue-router'
 import { getUserInfo } from '@/api/auth'
 
 const sidebarCollapsed = ref(false)
 const authStore = useAuthStore()
+const systemConfig = useSystemConfigStore()
 const router = useRouter()
 const route = useRoute()
 

@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-container">
-      <h1 class="system-title">外科护理主管护师培训学习系统 V1.0</h1>
+      <h1 class="system-title">{{ systemConfig.systemName || '外科护理主管护师培训学习系统' }} V1.0</h1>
       
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
@@ -113,8 +113,10 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSystemConfigStore } from '@/stores/systemConfig'
 
 const router = useRouter()
+const systemConfig = useSystemConfigStore()
 const authStore = useAuthStore()
 
 const form = ref({
