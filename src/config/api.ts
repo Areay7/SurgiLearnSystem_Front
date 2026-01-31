@@ -23,3 +23,5 @@ export const API_BASE_URL = (ENV_API_BASE_URL && ENV_API_BASE_URL.trim()) ? ENV_
 export const REQUEST_TIMEOUT = 10000
 // 文件下载/预览流式请求超时（局域网大文件需更长时间，5 分钟）
 export const FILE_REQUEST_TIMEOUT = 300000
+// 备份执行超时（30 分钟，备份可能涉及大量文件和数据库导出）
+export const BACKUP_REQUEST_TIMEOUT = 1800000
