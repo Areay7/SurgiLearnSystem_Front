@@ -95,6 +95,18 @@
             <label>描述</label>
             <textarea class="form-input" v-model="form.description" rows="3"></textarea>
           </div>
+          <div class="form-group" v-if="canCreate">
+            <label>指定可见班级</label>
+            <div class="class-select-hint">不选择=全员可见；选择后仅指定班级学员可见</div>
+            <div class="class-check-list">
+              <label v-for="c in classOptions" :key="c.id" class="class-check-item">
+                <input type="checkbox" :value="c.id" v-model="form.classIds" />
+                <span>{{ c.className || c.classCode || '-' }}</span>
+              </label>
+              <span v-if="classOptions.length === 0 && !classLoading" class="hint-small">暂无班级，请先在班级管理中创建</span>
+              <span v-if="classLoading" class="hint-small">加载中...</span>
+            </div>
+          </div>
         </div>
         <div class="hint">创建后，可在详情页关联学习资料并追踪进度。</div>
       </div>
@@ -135,11 +147,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getTrainingList } from '@/api/training'
+import { getTrainingList, getTrainingDetail } from '@/api/training'
 import { addTraining, updateTraining, deleteTraining } from '@/api/trainingAdmin'
 import type { Training } from '@/api/training'
 import { useAuthStore } from '@/stores/auth'
 import { getStudentsList, type Students } from '@/api/students'
+import { listTeachingClassesForAssign, type TeachingClass } from '@/api/teachingClass'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -153,7 +166,7 @@ const deleteMode = ref(false)
 
 const showDialog = ref(false)
 const dialogMode = ref<'add'|'edit'>('add')
-const form = reactive<Training & { startDate?: string; endDate?: string; instructorId?: string; instructorName?: string }>({
+const form = reactive<Training & { startDate?: string; endDate?: string; instructorId?: string; instructorName?: string; classIds?: number[] }>({
   trainingName: '',
   trainingType: '',
   description: '',
@@ -161,7 +174,8 @@ const form = reactive<Training & { startDate?: string; endDate?: string; instruc
   startDate: '',
   endDate: '',
   instructorId: '',
-  instructorName: ''
+  instructorName: '',
+  classIds: []
 })
 
 const currentStudentRecord = ref<Students | null>(null)
@@ -173,6 +187,9 @@ const showPick = ref(false)
 const pickSearch = ref('')
 const pickLoading = ref(false)
 const pickList = ref<Students[]>([])
+
+const classOptions = ref<TeachingClass[]>([])
+const classLoading = ref(false)
 
 const load = async () => {
   loading.value = true
@@ -202,6 +219,19 @@ const goDetail = (item: Training) => {
   router.push(`/training/${item.id}`)
 }
 
+const loadClassOptions = async () => {
+  if (!canCreate.value) return
+  classLoading.value = true
+  try {
+    const res = await listTeachingClassesForAssign({ page: 1, limit: 200 })
+    classOptions.value = res.data || []
+  } catch {
+    classOptions.value = []
+  } finally {
+    classLoading.value = false
+  }
+}
+
 const openCreateDialog = () => {
   dialogMode.value = 'add'
   Object.assign(form, {
@@ -213,13 +243,15 @@ const openCreateDialog = () => {
     startDate: '',
     endDate: '',
     instructorId: '',
-    instructorName: ''
+    instructorName: '',
+    classIds: []
   })
   // 讲师：默认讲师为自己
   if (!isAdmin.value && isInstructor.value && currentStudentRecord.value) {
     form.instructorId = String(currentStudentRecord.value.id)
     form.instructorName = currentStudentRecord.value.studentName || currentStudentRecord.value.phone || ''
   }
+  loadClassOptions()
   showDialog.value = true
 }
 
@@ -245,7 +277,7 @@ const removeOne = async (item: Training) => {
   }
 }
 
-const openEdit = (item: Training) => {
+const openEdit = async (item: Training) => {
   if (!item.id) return
   dialogMode.value = 'edit'
   Object.assign(form, {
@@ -257,8 +289,18 @@ const openEdit = (item: Training) => {
     startDate: item.startDate ? String(item.startDate).substring(0, 10) : '',
     endDate: item.endDate ? String(item.endDate).substring(0, 10) : '',
     instructorId: item.instructorId || '',
-    instructorName: item.instructorName || ''
+    instructorName: item.instructorName || '',
+    classIds: (item as any).classIds || []
   })
+  loadClassOptions()
+  try {
+    const res = await getTrainingDetail(item.id)
+    if (res.data && (res.data as any).classIds) {
+      form.classIds = (res.data as any).classIds
+    }
+  } catch {
+    // 使用默认空
+  }
   showDialog.value = true
 }
 
@@ -618,6 +660,10 @@ const chooseInstructor = (s: Students) => {
 .btn-cancel { background: white; color: var(--text-regular); border: 1px solid var(--border-color); }
 .btn-confirm { background: var(--primary-color); color: white; }
 .hint { margin-top: 10px; color: var(--text-secondary); font-size: 12px; }
+.class-select-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.class-check-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; background: #f9fafb; }
+.class-check-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 14px; }
+.class-check-item input { flex-shrink: 0; }
 
 @media (max-width: 768px) {
   .training-cards {

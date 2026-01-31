@@ -18,6 +18,7 @@ export interface Exam {
   creatorName?: string
   createTime?: string
   updateTime?: string
+  classIds?: number[]
 }
 
 // 分页参数

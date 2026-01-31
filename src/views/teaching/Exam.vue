@@ -307,6 +307,19 @@
             </div>
             
             <div class="form-group">
+              <label>指定可见班级</label>
+              <div class="class-select-hint">不选择=全员可见；选择后仅指定班级学员可见</div>
+              <div class="class-check-list">
+                <label v-for="c in classOptions" :key="c.id" class="class-check-item">
+                  <input type="checkbox" :value="c.id" v-model="editForm.classIds" />
+                  <span>{{ c.className || c.classCode || '-' }}</span>
+                </label>
+                <span v-if="classOptions.length === 0 && !classLoading" class="hint-small">暂无班级，请先在班级管理中创建</span>
+                <span v-if="classLoading" class="hint-small">加载中...</span>
+              </div>
+            </div>
+
+            <div class="form-group">
               <label>已选题目数量：{{ getQuestionCount(editForm.questionIds) }}</label>
               <div class="form-hint">点击"选择题目"按钮从题库中选择题目</div>
             </div>
@@ -478,9 +491,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { Exam } from '@/api/exam'
-import { addExam, deleteExam, getExamList, updateExam } from '@/api/exam'
+import { addExam, deleteExam, getExamList, updateExam, getExamDetail } from '@/api/exam'
 import type { QuestionBank } from '@/api/questionBank'
 import { getQuestionBankList } from '@/api/questionBank'
+import { listTeachingClassesForAssign, type TeachingClass } from '@/api/teachingClass'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -521,7 +535,7 @@ const searchForm = reactive({
 
 const showDialog = ref(false)
 const dialogMode = ref<'add' | 'edit'>('add')
-const editForm = reactive<Exam>({
+const editForm = reactive<Exam & { classIds?: number[] }>({
   examName: '',
   examType: '',
   examDate: undefined,
@@ -531,8 +545,12 @@ const editForm = reactive<Exam>({
   totalScore: 0,
   passScore: 0,
   questionIds: '',
-  status: '未开始'
+  status: '未开始',
+  classIds: []
 })
+
+const classOptions = ref<TeachingClass[]>([])
+const classLoading = ref(false)
 
 const examDateStr = ref('')
 
@@ -615,6 +633,18 @@ const handleSelectAll = (e: Event) => {
   }
 }
 
+const loadClassOptions = async () => {
+  classLoading.value = true
+  try {
+    const res = await listTeachingClassesForAssign({ page: 1, limit: 200 })
+    classOptions.value = res.data || []
+  } catch {
+    classOptions.value = []
+  } finally {
+    classLoading.value = false
+  }
+}
+
 // 打开新增对话框
 const openAddDialog = () => {
   dialogMode.value = 'add'
@@ -629,17 +659,28 @@ const openAddDialog = () => {
     totalScore: 0,
     passScore: 0,
     questionIds: '',
-    status: '未开始'
+    status: '未开始',
+    classIds: []
   })
   examDateStr.value = ''
+  loadClassOptions()
   showDialog.value = true
 }
 
 // 打开编辑对话框
-const openEditDialog = (row: Exam) => {
+const openEditDialog = async (row: Exam) => {
   dialogMode.value = 'edit'
-  Object.assign(editForm, { ...row })
+  Object.assign(editForm, { ...row, classIds: (row as any).classIds || [] })
   examDateStr.value = row.examDate ? new Date(row.examDate).toISOString().split('T')[0] : ''
+  loadClassOptions()
+  try {
+    const res = await getExamDetail(row.id!)
+    if (res.data && (res.data as any).classIds) {
+      editForm.classIds = (res.data as any).classIds
+    }
+  } catch {
+    // 使用默认
+  }
   showDialog.value = true
 }
 
@@ -1344,6 +1385,12 @@ onMounted(() => {
   color: var(--text-secondary);
   font-weight: 500;
 }
+
+.class-select-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.class-check-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px; background: #f9fafb; }
+.class-check-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 14px; }
+.class-check-item input { flex-shrink: 0; }
+.hint-small { font-size: 12px; color: var(--text-secondary); }
 
 .form-hint {
   font-size: 12px;

@@ -15,6 +15,7 @@ export interface Training {
   status?: string
   createTime?: string
   updateTime?: string
+  classIds?: number[]
 }
 
 export interface TrainingMaterial {

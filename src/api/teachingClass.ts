@@ -32,6 +32,15 @@ export function listTeachingClasses(params?: { page?: number; limit?: number; se
   })
 }
 
+/** 用于培训/考试指定班级时获取班级列表（管理员和讲师可调用） */
+export function listTeachingClassesForAssign(params?: { page?: number; limit?: number; searchText?: string }): Promise<PageResponse<TeachingClass>> {
+  return request({
+    url: '/TeachingClassController/listForAssign',
+    method: 'get',
+    params: { page: params?.page || 1, limit: params?.limit || 200, searchText: params?.searchText }
+  })
+}
+
 export function addTeachingClass(data: TeachingClass): Promise<ApiResponse> {
   return request({
     url: '/TeachingClassController/add',
