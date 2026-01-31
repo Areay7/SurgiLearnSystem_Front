@@ -4,7 +4,7 @@
       <h1 class="page-title">护理培训</h1>
       <div class="page-actions" v-if="canCreate">
         <button class="btn-primary" @click="openCreateDialog">创建培训</button>
-        <button class="btn-danger" @click="toggleDeleteMode">
+        <button v-if="canDelete" class="btn-danger" @click="toggleDeleteMode">
           {{ deleteMode ? '完成删除' : '删除培训' }}
         </button>
       </div>
@@ -26,19 +26,19 @@
             <span>📅 时间：{{ formatDate(item.startDate) }} ~ {{ formatDate(item.endDate) }}</span>
           </div>
           <div class="card-actions">
+            <!-- 有管理权限：编辑 + 编辑内容 + 查看进度 -->
+            <template v-if="canEdit || canEditMaterials || canViewProgress">
+              <button v-if="canEdit" class="btn-view" @click="openEdit(item)">编辑培训</button>
+              <button v-if="canEditMaterials" class="btn-join" @click="goEditContent(item)">编辑内容</button>
+              <button v-if="canViewProgress" class="btn-join" @click="goProgress(item)">学习进度</button>
+            </template>
             <!-- 学员：查看 + 开始学习 -->
-            <template v-if="!isAdmin && !isInstructor">
+            <template v-else>
               <button class="btn-view" @click="goDetail(item)">查看详情</button>
               <button class="btn-join" @click="goDetail(item)">开始学习</button>
             </template>
-            <!-- 管理员 / 讲师：编辑 + 编辑内容 + 查看进度 -->
-            <template v-else>
-              <button class="btn-view" @click="openEdit(item)">编辑培训</button>
-              <button class="btn-join" @click="goEditContent(item)">编辑内容</button>
-              <button class="btn-join" @click="goProgress(item)">学习进度</button>
-            </template>
             <button
-              v-if="deleteMode && canCreate"
+              v-if="deleteMode && canDelete"
               class="btn-delete-card"
               @click="removeOne(item)"
             >
@@ -181,7 +181,11 @@ const form = reactive<Training & { startDate?: string; endDate?: string; instruc
 const currentStudentRecord = ref<Students | null>(null)
 const isAdmin = computed(() => (auth.userType || 0) === 1)
 const isInstructor = computed(() => (currentStudentRecord.value?.userType || 0) === 2)
-const canCreate = computed(() => isAdmin.value || isInstructor.value)
+const canCreate = computed(() => auth.hasPermission('training:create') || isAdmin.value || isInstructor.value)
+const canEdit = computed(() => auth.hasPermission('training:edit') || isAdmin.value || isInstructor.value)
+const canEditMaterials = computed(() => auth.hasPermission('training:materials') || isAdmin.value || isInstructor.value)
+const canViewProgress = computed(() => auth.hasPermission('training:progress') || isAdmin.value || isInstructor.value)
+const canDelete = computed(() => auth.hasPermission('training:delete') || isAdmin.value || isInstructor.value)
 
 const showPick = ref(false)
 const pickSearch = ref('')

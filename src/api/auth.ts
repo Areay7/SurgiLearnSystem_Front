@@ -91,6 +91,16 @@ export interface UserInfo {
 }
 
 /**
+ * 获取当前登录用户的权限代码列表（需携带 token）
+ */
+export function getMyPermissions(): Promise<ApiResponse<string[]>> {
+  return request({
+    url: '/auth/myPermissions',
+    method: 'get'
+  })
+}
+
+/**
  * 获取用户信息
  */
 export function getUserInfo(username: string): Promise<ApiResponse<UserInfo>> {

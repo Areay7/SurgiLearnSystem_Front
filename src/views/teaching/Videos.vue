@@ -20,13 +20,18 @@
       </div>
     </div>
 
-    <div class="layout">
+    <div v-if="!canView" class="no-permission card">
+      <p>您没有观看视频的权限，请联系管理员。</p>
+    </div>
+    <div v-else class="layout">
       <!-- 视频播放器 -->
       <div class="player card">
         <div v-if="currentVideo" class="player-container">
+          <div v-if="videoLoading" class="video-loading">加载视频中...</div>
           <video
+            v-show="!videoLoading && videoBlobUrl"
             ref="videoPlayer"
-            :src="getVideoUrl(currentVideo.id)"
+            :src="videoBlobUrl"
             controls
             class="video-player"
             @loadedmetadata="onVideoLoaded"
@@ -92,6 +97,7 @@
           </div>
           
           <button 
+            v-if="canFavorite"
             class="btn-favorite" 
             :class="{ favorited: currentVideo.isFavorited }"
             @click="toggleFavorite"
@@ -127,6 +133,7 @@
             全部视频
           </button>
           <button 
+            v-if="canFavorite"
             class="tab-btn" 
             :class="{ active: listMode === 'favorites' }"
             @click="switchToFavorites"
@@ -178,7 +185,7 @@
               </div>
               <div class="type-tag">{{ video.videoType || '未分类' }}</div>
             </div>
-            <div v-if="video.isFavorited" class="favorite-mark">★</div>
+            <div v-if="canFavorite && video.isFavorited" class="favorite-mark">★</div>
           </div>
         </div>
         
@@ -267,10 +274,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { 
   getVideoList, 
   getVideoDetail,
+  getVideoPreviewBlob,
   uploadVideo,
   deleteVideo,
   addFavorite,
@@ -281,19 +289,23 @@ import {
 } from '@/api/videos'
 import { useAuthStore } from '@/stores/auth'
 import { getStudentInfo, type StudentInfo } from '@/api/auth'
-import { API_BASE_URL } from '@/config/api'
 
 const authStore = useAuthStore()
 
 // 权限控制
 const canUpload = ref(false)
 const isAdmin = computed(() => authStore.userType === 1)
+const canView = computed(() => authStore.hasPermission('video:view'))
+const canFavorite = computed(() => authStore.hasPermission('video:favorite'))
 const selectedVideoIds = ref<number[]>([])
 const userType = ref<number>(0) // 1-学员 2-讲师 3-管理员
 
 // 当前视频
 const currentVideo = ref<Video | null>(null)
 const videoPlayer = ref<HTMLVideoElement | null>(null)
+// 视频播放地址（通过带认证的 blob 请求获取，解决 video 元素不携带 Authorization 的问题）
+const videoBlobUrl = ref('')
+const videoLoading = ref(false)
 
 // 播放控制
 const playbackRate = ref(1)
@@ -484,23 +496,38 @@ const handleDeleteSelected = async () => {
   }
 }
 
+// 释放旧的 blob URL
+const revokeVideoBlobUrl = () => {
+  if (videoBlobUrl.value) {
+    URL.revokeObjectURL(videoBlobUrl.value)
+    videoBlobUrl.value = ''
+  }
+}
+
 // 选择视频
 const selectVideo = async (video: Video) => {
+  revokeVideoBlobUrl()
   currentVideo.value = video
+  videoLoading.value = true
   
-  // 加载视频详情（更新收藏状态等）
   try {
+    // 加载视频详情（更新收藏状态等）
     const response = await getVideoDetail(video.id!)
     if (response.code === 200 || response.code === 0) {
       currentVideo.value = response.data as Video
-      
-      // 等待视频元素加载后设置播放
-      if (videoPlayer.value) {
-        videoPlayer.value.load()
-      }
+    }
+    
+    // 通过带认证的请求获取视频流，video 元素直接 src 不会携带 Authorization
+    const blob = await getVideoPreviewBlob(video.id!)
+    videoBlobUrl.value = URL.createObjectURL(blob)
+    if (videoPlayer.value) {
+      videoPlayer.value.load()
     }
   } catch (error) {
-    console.error('加载视频详情失败:', error)
+    console.error('加载视频失败:', error)
+    alert('加载视频失败，请检查是否有观看权限')
+  } finally {
+    videoLoading.value = false
   }
 }
 
@@ -723,18 +750,28 @@ const formatFileSize = (bytes: number) => {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
-// 获取视频URL - 使用预览接口
-const getVideoUrl = (videoId?: number) => {
-  if (!videoId) return ''
-  // 使用视频预览接口
-  return `${API_BASE_URL}/VideosController/preview/${videoId}`
-}
-
 // 初始化
 onMounted(async () => {
   await checkUserPermission()
-  await loadVideoTypes()
-  await loadVideoList()
+  if (canView.value) {
+    await loadVideoTypes()
+    await loadVideoList()
+  }
+})
+
+watch(canView, (val) => {
+  if (val) {
+    loadVideoTypes()
+    loadVideoList()
+  }
+})
+
+watch(currentVideo, (v) => {
+  if (!v) revokeVideoBlobUrl()
+})
+
+onUnmounted(() => {
+  revokeVideoBlobUrl()
 })
 </script>
 
@@ -1009,6 +1046,18 @@ onMounted(async () => {
 }
 
 .loading-state,
+.video-loading,
+.no-permission {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.no-permission p {
+  margin: 0;
+  font-size: 16px;
+}
+
 .empty-state {
   padding: 40px 20px;
   text-align: center;

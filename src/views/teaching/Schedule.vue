@@ -2,9 +2,13 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">课程安排设置</h1>
-      <button v-if="canManage" class="btn-primary" @click="openAdd">新建课程安排</button>
+      <button v-if="canCreate" class="btn-primary" @click="openAdd">新建课程安排</button>
     </div>
 
+    <div v-if="!canView" class="no-permission card">
+      <p>您没有查看课程安排的权限，请联系管理员。</p>
+    </div>
+    <div v-else>
     <div v-if="!canManage" class="permission-hint">
       你当前只有查看权限（学员仅可查看，讲师/管理员可新建与维护课程安排）。
     </div>
@@ -45,10 +49,11 @@
         </div>
         <div class="actions">
           <button class="btn" @click="openView(c)">查看</button>
-          <button v-if="canManage" class="btn" @click="openEdit(c)">编辑</button>
-          <button v-if="canManage" class="btn danger" @click="removeOne(c)" :disabled="!c.id">删除</button>
+          <button v-if="canEdit" class="btn" @click="openEdit(c)">编辑</button>
+          <button v-if="canDelete" class="btn danger" @click="removeOne(c)" :disabled="!c.id">删除</button>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 新建/编辑/查看 -->
@@ -122,7 +127,11 @@ const currentStudentRecord = ref<Students | null>(null)
 
 const isAdmin = computed(() => (auth.userType || 0) === 1)
 const isInstructor = computed(() => (currentStudentRecord.value?.userType || 0) === 2)
-const canManage = computed(() => isAdmin.value || isInstructor.value)
+const canView = computed(() => auth.hasPermission('schedule:view'))
+const canCreate = computed(() => auth.hasPermission('schedule:create'))
+const canEdit = computed(() => auth.hasPermission('schedule:edit'))
+const canDelete = computed(() => auth.hasPermission('schedule:delete'))
+const canManage = computed(() => canCreate.value || canEdit.value || canDelete.value || isAdmin.value || isInstructor.value)
 
 const courses = ref<ScheduleItem[]>([])
 const loading = ref(false)
@@ -161,6 +170,7 @@ const loadCurrentUserRole = async () => {
 onMounted(loadCurrentUserRole)
 
 const load = async () => {
+  if (!canView.value) return
   loading.value = true
   try {
     const res = await listSchedule({ page: 1, limit: 50, searchText: searchText.value || undefined, status: filterStatus.value || undefined })
@@ -170,7 +180,7 @@ const load = async () => {
   }
 }
 
-onMounted(load)
+onMounted(() => { load() })
 
 // 自动刷新：让“到点开始/结束”在前端无需手动刷新即可看到变化
 let autoRefreshTimer: number | undefined

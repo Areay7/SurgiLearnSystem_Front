@@ -1,5 +1,9 @@
 <template>
   <div class="resources-page">
+    <div v-if="!canView" class="no-permission card">
+      <p>您没有查看资源的权限，请联系管理员。</p>
+    </div>
+    <template v-else>
     <div class="page-header">
       <h1 class="page-title">资源共享平台</h1>
       <div class="header-actions">
@@ -9,8 +13,8 @@
           <button class="btn-action" @click="handleExportCurrentPage">导出当前页Excel</button>
           <button class="btn-action" @click="handleExportAll">导出Excel</button>
         </div>
-        <button class="btn-primary" @click="openUploadDialog">上传资源</button>
-        <button class="btn-action" @click="handleDelete" v-if="selectedResources.length > 0">删除选中</button>
+        <button v-if="canUpload" class="btn-primary" @click="openUploadDialog">上传资源</button>
+        <button class="btn-action" @click="handleDelete" v-if="canDelete && selectedResources.length > 0">删除选中</button>
       </div>
     </div>
     
@@ -59,7 +63,7 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th width="50">
+              <th v-if="canDelete" width="50">
                 <input 
                   type="checkbox" 
                   @change="handleSelectAll"
@@ -80,12 +84,12 @@
           </thead>
           <tbody>
             <tr v-if="resources.length === 0">
-              <td colspan="11" class="empty-state">
+              <td :colspan="canDelete ? 11 : 10" class="empty-state">
                 <p>暂无数据</p>
               </td>
             </tr>
             <tr v-for="(resource, index) in resources" :key="resource.id || index" class="table-row">
-              <td>
+              <td v-if="canDelete">
                 <input 
                   type="checkbox" 
                   :value="resource.id"
@@ -94,9 +98,9 @@
               </td>
               <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
               <td>
-                <button class="btn-link" @click="handleDownload(resource)">下载</button>
-                <button class="btn-link" @click="handleEdit(resource)">编辑</button>
-                <button class="btn-link btn-danger" @click="handleDeleteSingle(resource)">删除</button>
+                <button v-if="canDownload" class="btn-link" @click="handleDownload(resource)">下载</button>
+                <button v-if="canUpload" class="btn-link" @click="handleEdit(resource)">编辑</button>
+                <button v-if="canDelete" class="btn-link btn-danger" @click="handleDeleteSingle(resource)">删除</button>
               </td>
               <td>{{ resource.resourceId || resource.id || '-' }}</td>
               <td>
@@ -109,7 +113,7 @@
               <td>{{ formatDateTime(resource.uploadDate) }}</td>
               <td>
                 {{ resource.downloadCount || 0 }}
-                <button class="btn-link btn-download" @click="handleDownload(resource)" title="下载资源">
+                <button v-if="canDownload" class="btn-link btn-download" @click="handleDownload(resource)" title="下载资源">
                   ⬇️
                 </button>
               </td>
@@ -317,11 +321,12 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { 
   getResourceList, 
   addResource, 
@@ -336,6 +341,10 @@ import { useAuthStore } from '@/stores/auth'
 import { batchUserInfo } from '@/api/auth'
 
 const authStore = useAuthStore()
+const canView = computed(() => authStore.hasPermission('resource:view'))
+const canUpload = computed(() => authStore.hasPermission('resource:upload'))
+const canDelete = computed(() => authStore.hasPermission('resource:delete'))
+const canDownload = computed(() => authStore.hasPermission('resource:download'))
 
 // 搜索表单
 const searchForm = ref({
@@ -406,6 +415,7 @@ const exportFields = [
 
 // 加载数据
 const loadResourceList = async () => {
+  if (!canView.value) return
   loading.value = true
   try {
     const params: any = {

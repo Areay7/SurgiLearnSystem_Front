@@ -69,6 +69,7 @@
           <router-link to="/exam" class="quick-link">参加考试</router-link>
           <router-link to="/materials" class="quick-link">查看资料</router-link>
           <router-link to="/videos" class="quick-link">观看视频</router-link>
+          <router-link to="/profile" class="quick-link">个人中心</router-link>
         </div>
       </div>
     </div>

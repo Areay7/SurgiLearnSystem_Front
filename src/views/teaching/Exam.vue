@@ -3,8 +3,9 @@
     <div class="page-header">
       <h1 class="page-title">考试系统</h1>
       <div class="header-actions">
-        <button class="btn-primary" @click="openAddDialog">创建考试</button>
-        <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
+        <button v-if="canCreate" class="btn-primary" @click="openAddDialog">创建考试</button>
+        <button v-if="canManageRecords" class="btn-action" @click="goExamRecords">考试记录</button>
+        <button v-if="canDelete && selectedIds.length > 0" class="btn-action" @click="handleDeleteSelected">删除选中</button>
       </div>
     </div>
     
@@ -88,7 +89,7 @@
                   <span class="type">{{ row.examType || '-' }}</span>
                 </div>
               </div>
-              <input type="checkbox" :value="row.id" v-model="selectedIds" />
+              <input v-if="canDelete" type="checkbox" :value="row.id" v-model="selectedIds" />
             </div>
 
             <div class="me-row">
@@ -114,10 +115,10 @@
             </div>
 
             <div class="me-actions">
-              <button class="btn primary" @click="openEditDialog(row)">编辑</button>
-              <button class="btn" @click="openSelectQuestionsDialog(row)">选择题目</button>
+              <button v-if="canEdit" class="btn primary" @click="openEditDialog(row)">编辑</button>
+              <button v-if="canEdit" class="btn" @click="openSelectQuestionsDialog(row)">选择题目</button>
               <button class="btn" v-if="row.status === '进行中' || row.status === '未开始'" @click="startExam(row)">开始考试</button>
-              <button class="btn danger" @click="handleDeleteSingle(row)">删除</button>
+              <button v-if="canDelete" class="btn danger" @click="handleDeleteSingle(row)">删除</button>
             </div>
           </div>
           <div v-if="exams.length === 0" class="mobile-empty">暂无数据</div>
@@ -129,6 +130,7 @@
             <tr>
               <th width="50">
                 <input 
+                  v-if="canDelete"
                   type="checkbox" 
                   @change="handleSelectAll"
                   :checked="selectedIds.length === exams.length && exams.length > 0"
@@ -156,14 +158,14 @@
             </tr>
             <tr v-for="(row, index) in exams" :key="row.id || index" class="table-row">
               <td>
-                <input type="checkbox" :value="row.id" v-model="selectedIds" />
+                <input v-if="canDelete" type="checkbox" :value="row.id" v-model="selectedIds" />
               </td>
               <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
               <td>
-                <button class="btn-link" @click="openEditDialog(row)">编辑</button>
-                <button class="btn-link" @click="openSelectQuestionsDialog(row)">选择题目</button>
+                <button v-if="canEdit" class="btn-link" @click="openEditDialog(row)">编辑</button>
+                <button v-if="canEdit" class="btn-link" @click="openSelectQuestionsDialog(row)">选择题目</button>
                 <button class="btn-link" @click="startExam(row)" v-if="row.status === '进行中' || row.status === '未开始'">开始考试</button>
-                <button class="btn-link btn-danger" @click="handleDeleteSingle(row)">删除</button>
+                <button v-if="canDelete" class="btn-link btn-danger" @click="handleDeleteSingle(row)">删除</button>
               </td>
               <td>{{ row.examId || row.id || '-' }}</td>
               <td class="exam-name">{{ row.examName || '-' }}</td>
@@ -509,6 +511,13 @@ const exams = ref<Exam[]>([])
 const selectedIds = ref<number[]>([])
 
 const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
+
+const canManageRecords = computed(() => authStore.hasPermission('exam:records') || [1, 2, 3].includes(authStore.userType || 0))
+const canCreate = computed(() => authStore.hasPermission('exam:create') || [1, 2, 3].includes(authStore.userType || 0))
+const canEdit = computed(() => authStore.hasPermission('exam:edit') || [1, 2, 3].includes(authStore.userType || 0))
+const canDelete = computed(() => authStore.hasPermission('exam:delete') || [1, 2, 3].includes(authStore.userType || 0))
+
+const goExamRecords = () => router.push('/exam-records')
 
 const currentPage = ref(1)
 const pageSize = ref(10)

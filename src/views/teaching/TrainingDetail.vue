@@ -225,6 +225,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getTrainingDetail, getTrainingMaterials, getTrainingMaterialProgressList, getTrainingProgress, reportTrainingMaterialProgress, startTraining } from '@/api/training'
 import type { Training, TrainingMaterial, TrainingProgress } from '@/api/training'
 import { getMaterialsList, downloadMaterialWithFilename, type LearningMaterial } from '@/api/materials'
+import { getStudentInfo } from '@/api/auth'
 import { setTrainingMaterials, getTrainingContentBlocks, reportBlockProgress } from '@/api/trainingAdmin'
 import type { TrainingContentBlock, TrainingContentBlockProgress } from '@/api/trainingAdmin'
 
@@ -232,7 +233,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const trainingId = computed(() => Number(route.params.id))
-const studentId = computed(() => Number(authStore.userPhone || '0'))
+const studentId = ref<number>(0)
 const studentName = computed(() => authStore.nickname || authStore.userPhone || '')
 const isAdmin = computed(() => (authStore.userType || 0) === 1)
 const isInstructor = computed(() => (authStore.userType || 0) === 2)
@@ -259,9 +260,22 @@ const loadingMaterials = ref(false)
 const savingConfig = ref(false)
 const fileDownloading = ref<number | null>(null)
 
+const loadStudentId = async () => {
+  if (!authStore.userPhone) return
+  try {
+    const res = await getStudentInfo(authStore.userPhone)
+    if ((res.code === 0 || res.code === 200) && res.data?.id) {
+      studentId.value = res.data.id
+    }
+  } catch {
+    studentId.value = 0
+  }
+}
+
 const load = async () => {
   const id = trainingId.value
   if (!id) return
+  await loadStudentId()
   const d = await getTrainingDetail(id)
   training.value = d.data || null
 
@@ -399,7 +413,7 @@ const formatSize = (bytes?: number) => {
 
 const handleStart = async () => {
   if (!trainingId.value || !studentId.value) {
-    alert('无法获取当前用户信息（studentId）')
+    alert('请先在个人中心完善个人信息后再开始学习')
     return
   }
   starting.value = true

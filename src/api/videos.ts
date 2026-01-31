@@ -145,3 +145,15 @@ export function getVideoTypes(): Promise<ApiResponse<string[]>> {
     method: 'get'
   })
 }
+
+/**
+ * 获取视频预览流（带认证，用于 video 播放）
+ * 返回 Blob，前端用 URL.createObjectURL 生成可播放地址
+ */
+export function getVideoPreviewBlob(id: number): Promise<Blob> {
+  return request({
+    url: `/VideosController/preview/${id}`,
+    method: 'get',
+    responseType: 'blob'
+  })
+}

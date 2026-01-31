@@ -146,6 +146,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考试答题', requiresAuth: true }
       },
       {
+        path: 'exam-records',
+        name: 'ExamRecords',
+        component: () => import('@/views/teaching/ExamRecords.vue'),
+        meta: { title: '考试记录' }
+      },
+      {
         path: 'students',
         name: 'Students',
         component: () => import('@/views/teaching/Students.vue'),
@@ -156,12 +162,6 @@ const routes: RouteRecordRaw[] = [
         name: 'Progress',
         component: () => import('@/views/teaching/Progress.vue'),
         meta: { title: '学习进度跟踪' }
-      },
-      {
-        path: 'instructors',
-        name: 'Instructors',
-        component: () => import('@/views/teaching/Instructors.vue'),
-        meta: { title: '讲师分配' }
       },
       {
         path: 'profile',

@@ -21,100 +21,22 @@
       <div v-if="isMobile && sidebarCollapsed" class="sidebar-overlay" @click="closeSidebar"></div>
       <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
         <nav class="nav-menu">
-          <div class="menu-section">
-            <h3 class="section-title">首页</h3>
-            <router-link to="/dashboard" class="nav-item">
-              <span class="nav-icon">🏠</span>
-              <span class="nav-text">首页</span>
-            </router-link>
-          </div>
-          
-          <div class="menu-section">
-            <h3 class="section-title">交流互动</h3>
-            <router-link to="/forum" class="nav-item">
-              <span class="nav-icon">💬</span>
-              <span class="nav-text">讨论论坛</span>
-            </router-link>
-            <router-link to="/resources" class="nav-item">
-              <span class="nav-icon">📚</span>
-              <span class="nav-text">资源共享平台</span>
-            </router-link>
-            <router-link to="/feedback" class="nav-item">
-              <span class="nav-icon">⭐</span>
-              <span class="nav-text">反馈评价</span>
-            </router-link>
-          </div>
-          
-          <div class="menu-section" v-if="isAdmin">
-            <h3 class="section-title">系统功能</h3>
-            <router-link to="/certificate" class="nav-item">
-              <span class="nav-icon">📜</span>
-              <span class="nav-text">证书颁发</span>
-            </router-link>
-            <router-link to="/mobile" class="nav-item">
-              <span class="nav-icon">📱</span>
-              <span class="nav-text">移动访问支持</span>
-            </router-link>
-            <router-link to="/settings" class="nav-item">
-              <span class="nav-icon">⚙️</span>
-              <span class="nav-text">系统设置</span>
-            </router-link>
-            <router-link to="/permissions" class="nav-item">
-              <span class="nav-icon">👥</span>
-              <span class="nav-text">用户权限管理</span>
-            </router-link>
-            <router-link to="/backup" class="nav-item">
-              <span class="nav-icon">💾</span>
-              <span class="nav-text">数据备份</span>
-            </router-link>
-          </div>
-          
-          <div class="menu-section">
-            <h3 class="section-title">教学管理</h3>
-            <router-link to="/training" class="nav-item">
-              <span class="nav-icon">🎓</span>
-              <span class="nav-text">护理培训</span>
-            </router-link>
-            <router-link v-if="!isAdmin" to="/my-certificates" class="nav-item">
-              <span class="nav-icon">🏅</span>
-              <span class="nav-text">我的证书</span>
-            </router-link>
-            <router-link to="/materials" class="nav-item">
-              <span class="nav-icon">📄</span>
-              <span class="nav-text">学习资料管理</span>
-            </router-link>
-            <router-link to="/schedule" class="nav-item">
-              <span class="nav-icon">📅</span>
-              <span class="nav-text">课程安排设置</span>
-            </router-link>
-            <router-link v-if="isAdmin" to="/teaching-class" class="nav-item">
-              <span class="nav-icon">🏫</span>
-              <span class="nav-text">班级管理</span>
-            </router-link>
-            <router-link to="/videos" class="nav-item">
-              <span class="nav-icon">🎬</span>
-              <span class="nav-text">视频讲座播放</span>
-            </router-link>
-            <router-link to="/question-bank" class="nav-item">
-              <span class="nav-icon">📝</span>
-              <span class="nav-text">在线题库</span>
-            </router-link>
-            <router-link to="/exam" class="nav-item">
-              <span class="nav-icon">📊</span>
-              <span class="nav-text">考试系统</span>
-            </router-link>
-            <router-link to="/students" class="nav-item">
-              <span class="nav-icon">👨‍🎓</span>
-              <span class="nav-text">用户管理</span>
-            </router-link>
-            <router-link to="/progress" class="nav-item">
-              <span class="nav-icon">📈</span>
-              <span class="nav-text">学习进度跟踪</span>
-            </router-link>
-            <router-link to="/instructors" class="nav-item">
-              <span class="nav-icon">👨‍🏫</span>
-              <span class="nav-text">讲师分配</span>
-            </router-link>
+          <div class="menu-section" v-for="s in menuSections.filter(x => x.showSection)" :key="s.id">
+            <h3 class="section-title" :class="{ collapsed: !s.open }" @click="toggleSection(s.id)">
+              <span class="section-toggle">{{ s.open ? '▼' : '▶' }}</span>
+              {{ s.title }}
+            </h3>
+            <div class="section-items" v-show="s.open">
+              <router-link
+                v-for="item in s.items.filter(i => i.show)"
+                :key="item.path"
+                :to="item.path"
+                class="nav-item"
+              >
+                <span class="nav-icon">{{ item.icon }}</span>
+                <span class="nav-text">{{ item.label }}</span>
+              </router-link>
+            </div>
           </div>
         </nav>
       </aside>
@@ -129,16 +51,91 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { getUserInfo } from '@/api/auth'
 
 const sidebarCollapsed = ref(false)
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
+
+const menuSections = ref([
+  {
+    id: 'home',
+    title: '首页',
+    open: true,
+    showSection: true,
+    items: [
+      { path: '/dashboard', icon: '🏠', label: '首页', show: true }
+    ]
+  },
+  {
+    id: 'interact',
+    title: '交流互动',
+    open: false,
+    showSection: true,
+    items: [
+      { path: '/forum', icon: '💬', label: '讨论论坛', show: true },
+      { path: '/resources', icon: '📚', label: '资源共享平台', show: true },
+      { path: '/feedback', icon: '⭐', label: '反馈评价', show: true }
+    ]
+  },
+  {
+    id: 'system',
+    title: '系统功能',
+    open: false,
+    showSection: true,
+    items: [
+      { path: '/certificate', icon: '📜', label: '证书颁发', show: true },
+      { path: '/mobile', icon: '📱', label: '移动访问支持', show: true },
+      { path: '/settings', icon: '⚙️', label: '系统设置', show: true },
+      { path: '/permissions', icon: '👥', label: '用户权限管理', show: true },
+      { path: '/backup', icon: '💾', label: '数据备份', show: true }
+    ]
+  },
+  {
+    id: 'teaching',
+    title: '教学管理',
+    open: false,
+    showSection: true,
+    items: [
+      { path: '/training', icon: '🎓', label: '护理培训', show: true },
+      { path: '/my-certificates', icon: '🏅', label: '我的证书', show: true },
+      { path: '/materials', icon: '📄', label: '学习资料管理', show: true },
+      { path: '/schedule', icon: '📅', label: '课程安排设置', show: true },
+      { path: '/teaching-class', icon: '🏫', label: '班级管理', show: true },
+      { path: '/videos', icon: '🎬', label: '视频讲座播放', show: true },
+      { path: '/question-bank', icon: '📝', label: '在线题库', show: true },
+      { path: '/exam', icon: '📊', label: '考试系统', show: true },
+      { path: '/exam-records', icon: '📋', label: '考试记录', show: true },
+      { path: '/students', icon: '👨‍🎓', label: '用户管理', show: true },
+      { path: '/progress', icon: '📈', label: '学习进度跟踪', show: true }
+    ]
+  }
+])
+
+function toggleSection(id: string) {
+  const s = menuSections.value.find(x => x.id === id)
+  if (s) s.open = !s.open
+}
+
+function updateItemVisibility() {
+  const admin = isAdmin.value
+  menuSections.value.forEach(s => {
+    if (s.id === 'system') s.showSection = admin
+    s.items.forEach(i => {
+      if (i.path === '/my-certificates') i.show = !admin
+      else if (['/certificate', '/mobile', '/settings', '/permissions', '/backup'].includes(i.path)) i.show = admin
+      else if (i.path === '/teaching-class' || i.path === '/students') i.show = admin
+      else if (i.path === '/exam-records') i.show = [1, 2, 3].includes(authStore.userType || 0)
+      else i.show = true
+    })
+  })
+}
 
 const displayName = computed(() => {
   return authStore.nickname || authStore.userPhone || '管理员'
@@ -166,8 +163,23 @@ const closeSidebar = () => {
   if (isMobile.value) sidebarCollapsed.value = false
 }
 
+watch(() => route.path, () => {
+  if (isMobile.value) closeSidebar()
+  // 自动展开包含当前页面的分组
+  const path = route.path
+  menuSections.value.forEach(s => {
+    if (s.items.some(i => path.startsWith(i.path) || path === i.path)) {
+      s.open = true
+    }
+  })
+}, { immediate: true })
+
+watch(isAdmin, updateItemVisibility, { immediate: true })
+
 // 页面加载时获取用户信息
 onMounted(async () => {
+  updateItemVisibility()
+  if (authStore.isLoggedIn) authStore.fetchPermissions()
   if (authStore.isLoggedIn && authStore.userPhone) {
     try {
       await authStore.fetchUserInfo()
@@ -308,12 +320,31 @@ onMounted(async () => {
 .section-title {
   font-size: 11px;
   color: var(--text-secondary);
-  padding: 0 26px 10px;
+  padding: 8px 26px 10px;
   margin: 0;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   opacity: 0.7;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+  border-radius: 6px;
+  margin: 0 12px 4px;
+}
+.section-title:hover {
+  background: var(--hover-bg);
+  opacity: 1;
+}
+.section-toggle {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.section-items {
+  overflow: hidden;
 }
 
 .nav-item {

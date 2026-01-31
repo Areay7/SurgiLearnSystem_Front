@@ -48,11 +48,12 @@
                   <input
                     v-model="studentForm.studentName"
                     type="text"
-                    placeholder="请输入学员姓名"
+                    placeholder="请输入学员姓名（新用户注册后请及时完善）"
                     class="form-input"
                     maxlength="100"
                     :disabled="saving"
                   />
+                  <span class="form-hint" v-if="studentForm.studentName === '待完善'">请将默认「待完善」改为您的真实姓名</span>
                 </div>
                 
                 <div class="form-group">

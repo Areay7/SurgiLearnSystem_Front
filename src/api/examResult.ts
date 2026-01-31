@@ -42,6 +42,7 @@ export function getExamResultList(params: {
   limit?: number
   examId?: number
   studentId?: string
+  studentKeyword?: string
   status?: string
 }): Promise<PageResponse<ExamResult>> {
   const requestParams: any = {
@@ -54,6 +55,9 @@ export function getExamResultList(params: {
   }
   if (params.studentId) {
     requestParams.studentId = params.studentId
+  }
+  if (params.studentKeyword) {
+    requestParams.studentKeyword = params.studentKeyword
   }
   if (params.status) {
     requestParams.status = params.status

@@ -1,14 +1,17 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { login as loginApi, register as registerApi, getUserInfo as getUserInfoApi } from '@/api/auth'
+import { ref, computed } from 'vue'
+import { login as loginApi, register as registerApi, getUserInfo as getUserInfoApi, getMyPermissions as getMyPermissionsApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = ref(false)
   const userPhone = ref('')
   const nickname = ref('')
-  const userType = ref<number>(0) // 0普通用户 1管理员
+  const userType = ref<number>(0) // 0普通用户 1管理员（登录表）；实际角色从 students 表，权限从权限接口
+  const permissions = ref<string[]>([]) // 当前用户权限代码列表
   const token = ref('')
   const loading = ref(false)
+
+  const hasPermission = computed(() => (code: string) => permissions.value.includes(code))
   
   // 初始化时检查是否有token
   const initAuth = () => {
@@ -28,7 +31,6 @@ export const useAuthStore = defineStore('auth', () => {
   // 获取用户信息
   const fetchUserInfo = async () => {
     if (!userPhone.value) return
-    
     try {
       const response = await getUserInfoApi(userPhone.value)
       if (response.code === 200 || response.code === 0) {
@@ -42,6 +44,16 @@ export const useAuthStore = defineStore('auth', () => {
       }
     } catch (error: any) {
       console.error('获取用户信息失败:', error)
+    }
+  }
+
+  // 获取当前用户权限列表（基于权限配置）
+  const fetchPermissions = async () => {
+    try {
+      const res = await getMyPermissionsApi()
+      permissions.value = (res.data || []) as string[]
+    } catch {
+      permissions.value = []
     }
   }
   
@@ -69,9 +81,10 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem('userPhone', phone)
         localStorage.setItem('userType', String(userType.value))
         
-        // 获取用户信息（包括昵称）
+        // 获取用户信息（包括昵称）和权限
         await fetchUserInfo()
-        
+        await fetchPermissions()
+
         // 如果选择记住我，保存到 localStorage
         if (remember) {
           localStorage.setItem('rememberedPhone', phone)
@@ -130,6 +143,7 @@ export const useAuthStore = defineStore('auth', () => {
     userPhone.value = ''
     nickname.value = ''
     userType.value = 0
+    permissions.value = []
     token.value = ''
     localStorage.removeItem('token')
     localStorage.removeItem('userPhone')
@@ -152,14 +166,22 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
-  // 初始化认证状态
-  initAuth()
-  
+  // 初始化时若已登录则拉取权限
+  const initAuthAndPermissions = () => {
+    initAuth()
+    if (isLoggedIn.value && token.value) {
+      fetchPermissions()
+    }
+  }
+  initAuthAndPermissions()
+
   return {
     isLoggedIn,
     userPhone,
     nickname,
     userType,
+    permissions,
+    hasPermission,
     token,
     loading,
     login,
@@ -167,6 +189,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkRemembered,
     fetchUserInfo,
+    fetchPermissions,
     updateNickname
   }
 })

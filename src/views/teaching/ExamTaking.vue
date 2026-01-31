@@ -590,8 +590,16 @@ const submitExam = async () => {
     })
     
     if (response.code === 200 || response.code === 0) {
-      alert('提交成功！')
-      router.push(`/exam-result/${examResult.value.id}`)
+      showSubmitDialog.value = false
+      const result = response.data as ExamResult
+      const name = result?.studentName || authStore.nickname || authStore.userPhone || '学员'
+      const score = result?.obtainedScore ?? 0
+      const total = result?.totalScore ?? examInfo.value.totalScore ?? 0
+      const passScore = result?.passScore ?? examInfo.value.passScore ?? 0
+      const passed = score >= passScore
+      const msg = `${name}，本次的考试成绩为 ${score} 分${total > 0 ? `（满分 ${total} 分）` : ''}，${passed ? '及格' : '未及格'}。`
+      alert(msg)
+      router.push('/exam')
     } else {
       alert('提交失败：' + (response.msg || '未知错误'))
     }
