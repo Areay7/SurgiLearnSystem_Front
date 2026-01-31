@@ -204,13 +204,7 @@ const currentQuestion = computed(() => {
 })
 
 const answeredCount = computed(() => {
-  return Object.keys(userAnswers).filter(key => {
-    const id = Number(key)
-    if (questions.value.find(q => q.id === id)?.questionType === '多选') {
-      return multiSelectAnswers[id] && multiSelectAnswers[id].length > 0
-    }
-    return userAnswers[id] && userAnswers[id].trim() !== ''
-  }).length
+  return questions.value.filter(q => hasAnswer(q.id!)).length
 })
 
 // 加载考试信息
@@ -288,6 +282,12 @@ const loadQuestions = async () => {
     // 按照原始顺序排序
     const questionMap = new Map(loadedQuestions.map(q => [q.id, q]))
     questions.value = questionIds.map(id => questionMap.get(id)).filter(q => q !== undefined) as QuestionBank[]
+    // 初始化多选题的选项数组，确保 v-model 绑定正常
+    questions.value.forEach(q => {
+      if (q?.questionType === '多选' && q.id != null && !(q.id in multiSelectAnswers)) {
+        multiSelectAnswers[q.id] = []
+      }
+    })
     
     if (questions.value.length === 0) {
       alert('无法加载题目')
@@ -522,13 +522,16 @@ const isMultiSelected = (questionId: number, value: string) => {
   return multiSelectAnswers[questionId]?.includes(value) || false
 }
 
-// 检查是否有答案
+// 检查是否有答案（单选/判断：userAnswers；多选：multiSelectAnswers 或 userAnswers）
 const hasAnswer = (questionId: number) => {
   const question = questions.value.find(q => q.id === questionId)
   if (question?.questionType === '多选') {
-    return multiSelectAnswers[questionId] && multiSelectAnswers[questionId].length > 0
+    const multi = multiSelectAnswers[questionId]
+    if (multi && multi.length > 0) return true
+    const single = userAnswers[questionId]
+    return single != null && String(single).trim() !== ''
   }
-  return userAnswers[questionId] && userAnswers[questionId].trim() !== ''
+  return userAnswers[questionId] != null && String(userAnswers[questionId]).trim() !== ''
 }
 
 // 保存答案
@@ -544,10 +547,17 @@ const saveAnswer = async () => {
     })
     
     if (response.code === 200 || response.code === 0) {
-      // 保存成功
+      // 保存成功，可选提示
+      const btn = document.querySelector('.btn-save') as HTMLButtonElement
+      if (btn) {
+        const orig = btn.textContent
+        btn.textContent = '已保存'
+        setTimeout(() => { btn.textContent = orig }, 1500)
+      }
     }
   } catch (error: any) {
     console.error('保存答案错误:', error)
+    alert('保存失败：' + (error?.message || '请重试'))
   } finally {
     saving.value = false
   }
