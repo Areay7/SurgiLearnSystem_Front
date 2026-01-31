@@ -94,15 +94,15 @@
       <div class="card">
         <h2 class="card-title">备份记录</h2>
         <div class="table-wrap">
-          <div class="table">
-            <div class="tr th">
-              <div class="td">时间</div>
-              <div class="td">类型</div>
-              <div class="td">大小</div>
+        <div class="table">
+          <div class="tr th">
+            <div class="td">时间</div>
+            <div class="td">类型</div>
+            <div class="td">大小</div>
               <div class="td">耗时</div>
-              <div class="td">状态</div>
-              <div class="td actions">操作</div>
-            </div>
+            <div class="td">状态</div>
+            <div class="td actions">操作</div>
+          </div>
             <div v-if="loading" class="tr">
               <div class="td" colspan="6" style="text-align:center;padding:24px">加载中...</div>
             </div>
@@ -119,8 +119,8 @@
                   {{ b.status === 'success' ? '成功' : '失败' }}
                 </span>
                 <span v-if="b.errorMsg" class="error-msg" :title="b.errorMsg">⚠</span>
-              </div>
-              <div class="td actions">
+            </div>
+            <div class="td actions">
                 <button class="btn" @click="downloadBackup(b)" :disabled="b.status !== 'success'">下载</button>
                 <button class="btn danger" @click="deleteBackup(b)">删除</button>
               </div>

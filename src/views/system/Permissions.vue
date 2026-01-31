@@ -58,7 +58,7 @@
           <span class="hint">选择角色，勾选该角色拥有的权限</span>
         </div>
         <div class="role-permission-form">
-          <div class="form-row">
+        <div class="form-row">
             <label>选择角色：</label>
             <select class="form-select" v-model="selectedRoleId" @change="loadRolePermissions">
               <option :value="null">请选择角色</option>
@@ -97,13 +97,13 @@
             <div class="form-item">
               <label>用户手机：</label>
               <input type="text" class="form-input" placeholder="手机号" v-model="searchForm.userPhone" />
-            </div>
-            <div class="form-item">
+          </div>
+          <div class="form-item">
               <label>权限代码：</label>
               <input type="text" class="form-input" placeholder="权限代码" v-model="searchForm.permissionCode" />
-            </div>
-            <div class="form-actions">
-              <button class="btn-query" @click="handleSearch" :disabled="loading">查询</button>
+          </div>
+          <div class="form-actions">
+            <button class="btn-query" @click="handleSearch" :disabled="loading">查询</button>
               <button class="btn-reset" @click="handleReset">重置</button>
               <button class="btn-primary" @click="openAddUserPerm(false)">单个添加</button>
               <button class="btn-primary btn-outline" @click="openAddUserPerm(true)">批量添加</button>
@@ -114,47 +114,47 @@
           </div>
         </div>
         <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
+        <table class="data-table">
+          <thead>
+            <tr>
                 <th width="50"><input type="checkbox" @change="handleSelectAll" :checked="selectedIds.length === permissions.length && permissions.length > 0" /></th>
-                <th width="60">序号</th>
-                <th width="120">用户ID</th>
+              <th width="60">序号</th>
+              <th width="120">用户ID</th>
                 <th width="130">用户手机</th>
                 <th width="140">权限代码</th>
                 <th width="140">权限名称</th>
                 <th width="80">类型</th>
                 <th width="80">状态</th>
                 <th width="120">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="permissions.length === 0">
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="permissions.length === 0">
                 <td colspan="9" class="empty-state">暂无数据</td>
-              </tr>
+            </tr>
               <tr v-for="(row, index) in permissions" :key="row.id || index">
                 <td><input type="checkbox" :value="row.id" v-model="selectedIds" /></td>
-                <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
-                <td>{{ row.userId ?? '-' }}</td>
+              <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
+              <td>{{ row.userId ?? '-' }}</td>
                 <td>{{ row.userPhone ?? '-' }}</td>
                 <td><code>{{ row.permissionCode }}</code></td>
-                <td>{{ row.permissionName }}</td>
+              <td>{{ row.permissionName }}</td>
                 <td><span class="badge" :class="row.grantType === 'revoke' ? 'revoke' : 'grant'">{{ row.grantType === 'revoke' ? '收回' : '授予' }}</span></td>
                 <td><span class="badge" :class="row.isActive === 1 ? 'active' : 'inactive'">{{ row.isActive === 1 ? '启用' : '禁用' }}</span></td>
                 <td>
                   <button class="btn-link" @click="openViewUserPerm(row.userPhone || '')" title="查看该用户当前权限">查看</button>
                   <button class="btn-link" @click="openEditUserPerm(row)">编辑</button>
                   <button class="btn-link danger" @click="handleDeleteOne(row)">删除</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
         <div class="pagination">
           <button class="page-btn" @click="prevPage" :disabled="currentPage <= 1 || loading">上一页</button>
           <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页，共 {{ total }} 条</span>
           <button class="page-btn" @click="nextPage" :disabled="currentPage >= totalPages || loading">下一页</button>
-        </div>
+      </div>
       </div>
     </div>
 
@@ -186,7 +186,7 @@
 
           <!-- 单个添加：下拉选择权限 -->
           <template v-if="!isBatchAdd">
-            <div class="form-group">
+          <div class="form-group">
               <label>权限 *</label>
               <select class="form-input" v-model="userPermForm.permissionCode" @change="onPermSelect">
                 <option value="">请选择权限</option>
@@ -211,7 +211,7 @@
                   </label>
                 </div>
               </div>
-            </div>
+          </div>
           </div>
 
           <div class="form-group">

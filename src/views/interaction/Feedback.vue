@@ -4,83 +4,169 @@
       <h1 class="page-title">反馈评价</h1>
       <div class="header-actions">
         <div class="action-buttons">
-          <button class="btn-action" @click="handlePrintAll">打印全部</button>
-          <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
-          <button class="btn-action" @click="handleExportCurrentPage">导出当前页Excel</button>
-          <button class="btn-action" @click="handleExportAll">导出Excel</button>
+          <button class="btn-action" @click="handleExport">导出Excel</button>
         </div>
-        <button class="btn-primary">提交反馈</button>
+        <button class="btn-primary" @click="openSubmitDialog">提交反馈</button>
       </div>
     </div>
     
     <div class="feedback-content">
       <div class="feedback-tabs">
-        <button class="tab-btn active">全部反馈</button>
-        <button class="tab-btn">课程评价</button>
-        <button class="tab-btn">系统建议</button>
-        <button class="tab-btn">问题反馈</button>
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.value }"
+          @click="activeTab = tab.value; loadList()"
+        >
+          {{ tab.label }}
+        </button>
       </div>
       
-      <div class="feedback-list">
-        <div class="feedback-item" v-for="(feedback, index) in feedbacks" :key="index">
-          <div class="feedback-checkbox">
+      <div class="search-bar">
             <input
-              type="checkbox"
-              :value="index"
-              v-model="selectedFeedbacks"
-            />
+          v-model="keyword"
+          type="text"
+          placeholder="搜索标题、内容、反馈人..."
+          class="search-input"
+          @keyup.enter="loadList"
+        />
+        <button class="btn-search" @click="loadList">搜索</button>
+      </div>
+      
+      <div class="feedback-list" v-if="!loading">
+        <div v-if="feedbacks.length === 0" class="empty-state">暂无反馈数据</div>
+        <div v-else class="feedback-item" v-for="(fb, index) in feedbacks" :key="fb.id || index">
+          <div class="feedback-checkbox" v-if="canManage">
+            <input type="checkbox" :value="fb.id" v-model="selectedIds" />
           </div>
           <div class="feedback-content-wrapper">
             <div class="feedback-header">
               <div class="feedback-user">
                 <span class="user-avatar">👤</span>
                 <div>
-                  <div class="user-name">{{ feedback.userName }}</div>
-                  <div class="feedback-time">{{ feedback.time }}</div>
+                  <div class="user-name">{{ fb.userName || fb.userId || '-' }}</div>
+                  <div class="feedback-time">{{ formatTime(fb.createTime) }}</div>
                 </div>
               </div>
-              <div class="feedback-rating">
-                <span class="stars">{{ getStars(feedback.rating) }}</span>
+              <div class="feedback-meta">
+                <span class="type-tag">{{ fb.feedbackType || '系统建议' }}</span>
+                <span class="status-tag" :class="getStatusClass(fb.status)">{{ fb.status || '待处理' }}</span>
+                <span class="stars">{{ getStars(fb.rating || 0) }}</span>
               </div>
             </div>
-            <div class="feedback-title">{{ feedback.title }}</div>
-            <p class="feedback-content-text">{{ feedback.content }}</p>
-            <div class="feedback-tags">
-              <span class="tag" v-for="tag in feedback.tags" :key="tag">{{ tag }}</span>
+            <div class="feedback-title">{{ fb.title }}</div>
+            <p class="feedback-content-text">{{ fb.content }}</p>
+            <div v-if="fb.relateName" class="feedback-relate">关联：{{ fb.relateName }}</div>
+            <div v-if="fb.replyContent" class="feedback-reply">
+              <div class="reply-label">管理员回复：</div>
+              <div class="reply-content">{{ fb.replyContent }}</div>
+              <div class="reply-time" v-if="fb.replyTime">{{ formatTime(fb.replyTime) }}</div>
+            </div>
+            <div class="feedback-actions" v-if="canManage">
+              <button class="btn-sm" @click="openReplyDialog(fb)">回复</button>
+              <button class="btn-sm" @click="openStatusDialog(fb)">更新状态</button>
+              <button class="btn-sm danger" @click="handleDelete(fb)">删除</button>
             </div>
           </div>
         </div>
       </div>
+      <div v-else class="loading-state">加载中...</div>
       
-      <div class="pagination">
-        <button class="page-btn" @click="prevPage" :disabled="currentPage === 1">上一页</button>
-        <span class="page-info">第 {{ currentPage }} 页，共 {{ totalPages }} 页</span>
-        <button class="page-btn" @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
+      <div class="pagination" v-if="total > 0">
+        <button class="page-btn" @click="prevPage" :disabled="page <= 1">上一页</button>
+        <span class="page-info">第 {{ page }} 页，共 {{ totalPages }} 页，共 {{ total }} 条</span>
+        <button class="page-btn" @click="nextPage" :disabled="page >= totalPages">下一页</button>
       </div>
     </div>
     
-    <!-- 导出字段选择对话框 -->
-    <div v-if="showExportDialog" class="export-dialog-overlay" @click="showExportDialog = false">
-      <div class="export-dialog" @click.stop>
+    <!-- 提交反馈对话框 -->
+    <div v-if="showSubmitDialog" class="dialog-overlay" @click="showSubmitDialog = false">
+      <div class="dialog" @click.stop>
         <div class="dialog-header">
-          <h3>选择导出字段</h3>
-          <button class="close-btn" @click="showExportDialog = false">×</button>
+          <h3>提交反馈</h3>
+          <button class="close-btn" @click="showSubmitDialog = false">×</button>
+        </div>
+        <form class="dialog-body" @submit.prevent="submitFeedback">
+          <div class="form-group">
+            <label>反馈类型 *</label>
+            <select v-model="form.feedbackType" required>
+              <option value="课程评价">课程评价</option>
+              <option value="系统建议">系统建议</option>
+              <option value="问题反馈">问题反馈</option>
+            </select>
+          </div>
+          <div class="form-group" v-if="form.feedbackType === '课程评价'">
+            <label>关联培训/课程</label>
+            <select v-model="form.relateId">
+              <option :value="undefined">不关联</option>
+              <option v-for="t in trainingList" :key="t.id" :value="t.id">{{ t.trainingName || t.training_name || '-' }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>标题 *</label>
+            <input v-model="form.title" type="text" placeholder="请输入反馈标题" required maxlength="200" />
+          </div>
+          <div class="form-group">
+            <label>内容 *</label>
+            <textarea v-model="form.content" placeholder="请详细描述您的反馈或建议" required rows="5"></textarea>
+          </div>
+          <div class="form-group">
+            <label>评分（1-5星，选填）</label>
+            <div class="rating-select">
+              <button type="button" v-for="n in 5" :key="n" class="star-btn" :class="{ active: form.rating >= n }" @click="form.rating = n">
+                {{ form.rating >= n ? '⭐' : '☆' }}
+              </button>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button type="button" class="btn-cancel" @click="showSubmitDialog = false">取消</button>
+            <button type="submit" class="btn-confirm" :disabled="submitting">提交</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <!-- 回复对话框 -->
+    <div v-if="showReplyDialog" class="dialog-overlay" @click="showReplyDialog = false">
+      <div class="dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>回复反馈</h3>
+          <button class="close-btn" @click="showReplyDialog = false">×</button>
         </div>
         <div class="dialog-body">
-          <div class="field-options">
-            <label v-for="field in exportFields" :key="field.key" class="field-checkbox">
-              <input
-                type="checkbox"
-                :value="field.key"
-                v-model="selectedExportFields"
-              />
-              <span>{{ field.label }}</span>
-            </label>
+          <div class="form-group">
+            <label>回复内容</label>
+            <textarea v-model="replyContent" placeholder="请输入回复内容" rows="4"></textarea>
+          </div>
+          <div class="dialog-footer">
+            <button type="button" class="btn-cancel" @click="showReplyDialog = false">取消</button>
+            <button type="button" class="btn-confirm" @click="saveReply" :disabled="submitting">保存</button>
           </div>
         </div>
+      </div>
+    </div>
+    
+    <!-- 更新状态对话框 -->
+    <div v-if="showStatusDialog" class="dialog-overlay" @click="showStatusDialog = false">
+      <div class="dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>更新状态</h3>
+          <button class="close-btn" @click="showStatusDialog = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label>状态</label>
+            <select v-model="editStatus">
+              <option value="待处理">待处理</option>
+              <option value="处理中">处理中</option>
+              <option value="已处理">已处理</option>
+            </select>
+        </div>
         <div class="dialog-footer">
-          <button class="btn-cancel" @click="showExportDialog = false">取消</button>
-          <button class="btn-confirm" @click="confirmExport">确认导出</button>
+            <button type="button" class="btn-cancel" @click="showStatusDialog = false">取消</button>
+            <button type="button" class="btn-confirm" @click="saveStatus" :disabled="submitting">保存</button>
+          </div>
         </div>
       </div>
     </div>
@@ -88,635 +174,318 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { getFeedbackList, addFeedback, updateFeedback, removeFeedback } from '@/api/feedback'
+import { getTrainingList } from '@/api/training'
+import type { UserFeedback } from '@/api/feedback'
 
-// 分页
-const currentPage = ref(1)
-const totalPages = ref(4)
+const authStore = useAuthStore()
 
-// 选中的反馈
-const selectedFeedbacks = ref<number[]>([])
-
-// 导出对话框
-const showExportDialog = ref(false)
-const exportType = ref<'current' | 'all'>('current')
-const selectedExportFields = ref<string[]>([])
-
-// 导出字段配置
-const exportFields = [
-  { key: 'feedbackId', label: '反馈ID' },
-  { key: 'title', label: '反馈标题' },
-  { key: 'content', label: '反馈内容' },
-  { key: 'userId', label: '反馈者ID' },
-  { key: 'userName', label: '反馈者姓名' },
-  { key: 'feedbackTime', label: '反馈时间' },
-  { key: 'rating', label: '评分' },
-  { key: 'feedbackType', label: '反馈类型' },
-  { key: 'courseId', label: '关联课程ID' },
-  { key: 'courseName', label: '关联课程名称' },
-  { key: 'tags', label: '标签' },
-  { key: 'status', label: '处理状态' }
+const tabs = [
+  { label: '全部反馈', value: '' },
+  { label: '课程评价', value: '课程评价' },
+  { label: '系统建议', value: '系统建议' },
+  { label: '问题反馈', value: '问题反馈' }
 ]
 
-// 反馈数据
-const feedbacks = ref([
-  {
-    feedbackId: 'F001',
-    title: '课程《外科护理基础》评价',
-    content: '这门课程内容非常丰富，讲解详细，对我帮助很大。希望能增加更多实际案例的分析。',
-    userId: 'U101',
-    userName: '学员1',
-    feedbackTime: '2024-01-15 10:30:00',
-    time: '2024-01-15 10:30',
-    rating: 5,
-    feedbackType: '课程评价',
-    courseId: 'C001',
-    courseName: '外科护理基础',
-    tags: ['课程评价', '建议'],
-    status: '已处理'
-  },
-  {
-    feedbackId: 'F002',
-    title: '系统使用建议',
-    content: '希望系统能够增加更多的学习资源，特别是视频教程方面。',
-    userId: 'U102',
-    userName: '学员2',
-    feedbackTime: '2024-01-14 14:20:00',
-    time: '2024-01-14 14:20',
-    rating: 4,
+const activeTab = ref('')
+const keyword = ref('')
+const page = ref(1)
+const limit = 10
+const total = ref(0)
+const feedbacks = ref<UserFeedback[]>([])
+const loading = ref(false)
+const selectedIds = ref<number[]>([])
+
+const showSubmitDialog = ref(false)
+const showReplyDialog = ref(false)
+const showStatusDialog = ref(false)
+const submitting = ref(false)
+const replyContent = ref('')
+const editStatus = ref('')
+const currentFeedback = ref<UserFeedback | null>(null)
+const trainingList = ref<any[]>([])
+
+const form = ref<UserFeedback>({
+  title: '',
+  content: '',
+  rating: 0,
     feedbackType: '系统建议',
-    courseId: '',
-    courseName: '',
-    tags: ['系统建议'],
-    status: '处理中'
-  },
-  {
-    feedbackId: 'F003',
-    title: '视频播放问题反馈',
-    content: '视频播放时经常出现卡顿现象，希望能优化一下。',
-    userId: 'U103',
-    userName: '学员3',
-    feedbackTime: '2024-01-13 09:15:00',
-    time: '2024-01-13 09:15',
-    rating: 3,
-    feedbackType: '问题反馈',
-    courseId: 'C002',
-    courseName: '护理操作技能',
-    tags: ['问题反馈', '技术问题'],
-    status: '待处理'
-  },
-  {
-    feedbackId: 'F004',
-    title: '课程《护理心理学》评价',
-    content: '课程内容很好，但希望能有更多的互动环节。',
-    userId: 'U104',
-    userName: '学员4',
-    feedbackTime: '2024-01-12 16:45:00',
-    time: '2024-01-12 16:45',
-    rating: 4,
-    feedbackType: '课程评价',
-    courseId: 'C003',
-    courseName: '护理心理学',
-    tags: ['课程评价'],
-    status: '已处理'
-  },
-  {
-    feedbackId: 'F005',
-    title: '学习资料更新建议',
-    content: '希望学习资料能够及时更新，保持内容的时效性。',
-    userId: 'U105',
-    userName: '学员5',
-    feedbackTime: '2024-01-11 11:20:00',
-    time: '2024-01-11 11:20',
-    rating: 5,
-    feedbackType: '系统建议',
-    courseId: '',
-    courseName: '',
-    tags: ['系统建议', '内容更新'],
-    status: '已处理'
-  },
-  {
-    feedbackId: 'F006',
-    title: '考试系统优化建议',
-    content: '考试系统的界面可以更加友好一些，操作流程可以简化。',
-    userId: 'U106',
-    userName: '学员6',
-    feedbackTime: '2024-01-10 08:30:00',
-    time: '2024-01-10 08:30',
-    rating: 4,
-    feedbackType: '系统建议',
-    courseId: '',
-    courseName: '',
-    tags: ['系统建议', '界面优化'],
-    status: '处理中'
-  }
-])
+  relateId: undefined,
+  relateName: ''
+})
 
-// 获取星级显示
-const getStars = (rating: number) => {
-  return '⭐'.repeat(rating) + '☆'.repeat(5 - rating)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit)))
+const canManage = computed(() => (authStore.userType || 0) === 1 || authStore.hasPermission('user:view'))
+
+function formatTime(t?: string) {
+  if (!t) return '-'
+  return t.replace('T', ' ').substring(0, 19)
 }
 
-// 分页功能
-const prevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
-  }
+function getStars(r: number) {
+  return '⭐'.repeat(Math.min(5, Math.max(0, r))) + '☆'.repeat(5 - Math.min(5, Math.max(0, r)))
 }
 
-const nextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value++
-  }
+function getStatusClass(s: string) {
+  if (s === '已处理') return 'done'
+  if (s === '处理中') return 'doing'
+  return 'pending'
 }
 
-// 打印功能
-const handlePrintAll = () => {
-  window.print()
-}
-
-const handlePrintSelected = () => {
-  if (selectedFeedbacks.value.length === 0) {
-    alert('请先选择要打印的反馈')
-    return
-  }
-  alert(`准备打印 ${selectedFeedbacks.value.length} 条反馈`)
-}
-
-// 导出Excel功能
-const handleExportCurrentPage = () => {
-  exportType.value = 'current'
-  selectedExportFields.value = exportFields.map(f => f.key)
-  showExportDialog.value = true
-}
-
-const handleExportAll = () => {
-  exportType.value = 'all'
-  selectedExportFields.value = exportFields.map(f => f.key)
-  showExportDialog.value = true
-}
-
-// 确认导出
-const confirmExport = () => {
-  if (selectedExportFields.value.length === 0) {
-    alert('请至少选择一个导出字段')
-    return
-  }
-  
-  const dataToExport = exportType.value === 'current' 
-    ? feedbacks.value 
-    : feedbacks.value
-  
-  exportToCSV(dataToExport, selectedExportFields.value)
-  showExportDialog.value = false
-}
-
-// 导出为CSV
-const exportToCSV = (data: any[], fields: string[]) => {
-  const headers = fields.map(key => {
-    const field = exportFields.find(f => f.key === key)
-    return field ? field.label : key
-  })
-  
-  let csvContent = '\uFEFF'
-  csvContent += headers.join(',') + '\n'
-  
-  data.forEach(item => {
-    const row = fields.map(key => {
-      let value = item[key] ?? ''
-      // 处理数组（如tags）
-      if (Array.isArray(value)) {
-        value = value.join(';')
-      }
-      if (typeof value === 'boolean') {
-        value = value ? '是' : '否'
-      }
-      if (String(value).includes(',') || String(value).includes('\n')) {
-        value = `"${String(value).replace(/"/g, '""')}"`
-      }
-      return value
+async function loadList() {
+  loading.value = true
+  try {
+    const res = await getFeedbackList({
+      page: page.value,
+      limit,
+      feedbackType: activeTab.value || undefined,
+      keyword: keyword.value.trim() || undefined
     })
-    csvContent += row.join(',') + '\n'
-  })
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `反馈评价_${exportType.value === 'current' ? '当前页' : '全部'}_${new Date().getTime()}.csv`)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+    feedbacks.value = res.data || []
+    total.value = res.count || 0
+  } catch {
+    feedbacks.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
 }
+
+function prevPage() {
+  if (page.value > 1) {
+    page.value--
+    loadList()
+  }
+}
+
+function nextPage() {
+  if (page.value < totalPages.value) {
+    page.value++
+    loadList()
+  }
+}
+
+function openSubmitDialog() {
+  if (!authStore.isLoggedIn) {
+    alert('请先登录')
+    return
+  }
+  form.value = { title: '', content: '', rating: 0, feedbackType: '系统建议' }
+  loadTrainingList()
+  showSubmitDialog.value = true
+}
+
+async function loadTrainingList() {
+  try {
+    const res = await getTrainingList({ page: 1, limit: 200 })
+    trainingList.value = Array.isArray(res.data) ? res.data : (res as any).list || []
+  } catch {
+    trainingList.value = []
+  }
+}
+
+async function submitFeedback() {
+  submitting.value = true
+  try {
+    const rel = trainingList.value.find(t => t.id === form.value.relateId)
+    const data: UserFeedback = {
+      ...form.value,
+      userName: authStore.nickname || authStore.userPhone || '',
+      relateName: rel?.trainingName || rel?.training_name || ''
+    }
+    const res = await addFeedback(data)
+    if (res?.code === 200 || res?.code === 0) {
+      showSubmitDialog.value = false
+      loadList()
+    } else {
+      alert(res?.msg || '提交失败')
+    }
+  } catch (e: any) {
+    alert(e?.message || '提交失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+function openReplyDialog(fb: UserFeedback) {
+  currentFeedback.value = fb
+  replyContent.value = fb.replyContent || ''
+  showReplyDialog.value = true
+}
+
+async function saveReply() {
+  if (!currentFeedback.value?.id) return
+  submitting.value = true
+  try {
+    const res = await updateFeedback({ id: currentFeedback.value.id, replyContent: replyContent.value })
+    if (res?.code === 200 || res?.code === 0) {
+      showReplyDialog.value = false
+      loadList()
+    } else {
+      alert(res?.msg || '保存失败')
+    }
+  } catch (e: any) {
+    alert(e?.message || '保存失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+function openStatusDialog(fb: UserFeedback) {
+  currentFeedback.value = fb
+  editStatus.value = fb.status || '待处理'
+  showStatusDialog.value = true
+}
+
+async function saveStatus() {
+  if (!currentFeedback.value?.id) return
+  submitting.value = true
+  try {
+    const res = await updateFeedback({ id: currentFeedback.value.id, status: editStatus.value })
+    if (res?.code === 200 || res?.code === 0) {
+      showStatusDialog.value = false
+      loadList()
+    } else {
+      alert(res?.msg || '保存失败')
+    }
+  } catch (e: any) {
+    alert(e?.message || '保存失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleDelete(fb: UserFeedback) {
+  if (!confirm('确定删除该反馈吗？')) return
+  try {
+    const res = await removeFeedback(fb.id!)
+    if (res?.code === 200 || res?.code === 0) {
+      loadList()
+    } else {
+      alert(res?.msg || '删除失败')
+    }
+  } catch (e: any) {
+    alert(e?.message || '删除失败')
+  }
+}
+
+function handleExport() {
+  const fields = [
+    { key: 'id', label: 'ID' },
+    { key: 'title', label: '标题' },
+    { key: 'content', label: '内容' },
+    { key: 'userName', label: '反馈人' },
+    { key: 'createTime', label: '反馈时间' },
+    { key: 'rating', label: '评分' },
+    { key: 'feedbackType', label: '类型' },
+    { key: 'relateName', label: '关联' },
+    { key: 'status', label: '状态' },
+    { key: 'replyContent', label: '回复' }
+  ]
+  let csv = '\uFEFF' + fields.map(f => f.label).join(',') + '\n'
+  feedbacks.value.forEach(item => {
+    const row = fields.map(f => {
+      let v = (item as any)[f.key] ?? ''
+      if (String(v).includes(',') || String(v).includes('\n')) v = `"${String(v).replace(/"/g, '""')}"`
+      return v
+    })
+    csv += row.join(',') + '\n'
+  })
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `反馈评价_${new Date().getTime()}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+onMounted(loadList)
 </script>
 
 <style scoped>
-.feedback-page {
-  max-width: 100%;
-}
+.feedback-page { max-width: 100%; }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
+.btn-action { padding: 8px 16px; background: white; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 13px; }
+.btn-action:hover { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-.action-buttons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.page-title { font-size: 26px; font-weight: 500; color: var(--text-primary); }
 
-.btn-action {
-  padding: 8px 16px;
-  background: white;
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.3s;
-  white-space: nowrap;
-}
+.btn-primary { padding: 10px 20px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.btn-primary:hover { background: #66b1ff; }
 
-.btn-action:hover {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
+.feedback-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab-btn { padding: 8px 16px; border: 1px solid var(--border-color); background: white; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.tab-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.tab-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-.page-title {
-  font-size: 26px;
-  font-weight: 500;
-  color: var(--text-primary);
-  letter-spacing: -0.3px;
-}
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-input { flex: 1; max-width: 300px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; }
+.btn-search { padding: 8px 16px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; }
 
-.btn-primary {
-  padding: 10px 20px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background 0.3s;
-}
+.feedback-list { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--border-color); }
+.empty-state, .loading-state { padding: 48px; text-align: center; color: var(--text-secondary); }
 
-.btn-primary:hover {
-  background: var(--primary-light);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(91, 155, 213, 0.3);
-}
+.feedback-item { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; gap: 12px; align-items: flex-start; }
+.feedback-item:last-child { border-bottom: none; }
+.feedback-checkbox { padding-top: 2px; flex-shrink: 0; }
+.feedback-content-wrapper { flex: 1; }
 
-.feedback-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
+.feedback-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.feedback-user { display: flex; align-items: center; gap: 12px; }
+.user-avatar { font-size: 20px; }
+.user-name { font-weight: 600; color: var(--text-primary); }
+.feedback-time { font-size: 12px; color: var(--text-secondary); }
+.feedback-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.type-tag { padding: 2px 8px; background: #ecf5ff; color: var(--primary-color); border-radius: 4px; font-size: 12px; }
+.status-tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+.status-tag.pending { background: #fff7e6; color: #fa8c16; }
+.status-tag.doing { background: #e6f7ff; color: #1890ff; }
+.status-tag.done { background: #f6ffed; color: #52c41a; }
+.stars { font-size: 14px; }
 
-.tab-btn {
-  padding: 8px 16px;
-  border: 1px solid var(--border-color);
-  background: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s;
-}
+.feedback-title { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+.feedback-content-text { color: var(--text-regular); line-height: 1.6; margin-bottom: 8px; }
+.feedback-relate { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.feedback-reply { margin-top: 12px; padding: 12px; background: #f7f9fc; border-radius: 6px; border-left: 3px solid var(--primary-color); }
+.reply-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.reply-content { color: var(--text-regular); }
+.reply-time { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 
-.tab-btn:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
+.feedback-actions { margin-top: 12px; display: flex; gap: 8px; }
+.btn-sm { padding: 4px 12px; font-size: 12px; border: 1px solid var(--border-color); background: white; border-radius: 4px; cursor: pointer; }
+.btn-sm:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.btn-sm.danger:hover { border-color: #f5222d; color: #f5222d; }
 
-.tab-btn.active {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
+.pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
+.page-btn { padding: 8px 16px; border: 1px solid var(--border-color); background: white; border-radius: 6px; cursor: pointer; }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.page-info { color: var(--text-secondary); font-size: 14px; }
 
-.feedback-list {
-  background: var(--card-bg);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-.feedback-item {
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.feedback-checkbox {
-  padding-top: 2px;
-  flex-shrink: 0;
-}
-
-.feedback-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.feedback-content-wrapper {
-  flex: 1;
-}
-
-.feedback-item:last-child {
-  border-bottom: none;
-}
-
-.feedback-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.feedback-user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--bg-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-}
-
-.user-name {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.feedback-time {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.feedback-rating .stars {
-  font-size: 16px;
-}
-
-.feedback-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.feedback-content-text {
-  color: var(--text-regular);
-  line-height: 1.6;
-  margin-bottom: 12px;
-}
-
-.feedback-tags {
-  display: flex;
-  gap: 8px;
-}
-
-.tag {
-  padding: 4px 12px;
-  background: #ecf5ff;
-  color: var(--primary-color);
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.page-btn {
-  padding: 8px 16px;
-  border: 1px solid var(--border-color);
-  background: white;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.page-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-btn:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-.page-info {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-/* 导出对话框样式 */
-.export-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.export-dialog {
-  background: var(--card-bg);
-  border-radius: 14px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.dialog-header h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--text-primary);
-  letter-spacing: -0.2px;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.3s;
-}
-
-.close-btn:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
-
-.dialog-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.field-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.field-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text-regular);
-  user-select: none;
-}
-
-.field-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.field-checkbox span {
-  flex: 1;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 24px;
-  border-top: 1px solid var(--border-color);
-}
-
-.btn-cancel {
-  padding: 10px 22px;
-  background: var(--card-bg);
-  color: var(--text-regular);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.25s ease;
-  font-weight: 400;
-}
-
-.btn-cancel:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  background: rgba(91, 155, 213, 0.05);
-  transform: translateY(-1px);
-}
-
-.btn-confirm {
-  padding: 10px 22px;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.25s ease;
-  font-weight: 400;
-}
-
-.btn-confirm:hover {
-  background: var(--primary-light);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(91, 155, 213, 0.3);
-}
+.dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.dialog { background: white; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+.dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+.dialog-header h3 { margin: 0; font-size: 18px; }
+.close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); }
+.dialog-body { padding: 20px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--text-regular); }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; }
+.rating-select { display: flex; gap: 4px; }
+.star-btn { padding: 4px; font-size: 24px; background: none; border: none; cursor: pointer; }
+.star-btn.active { }
+.dialog-footer { display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border-color); margin-top: 16px; }
+.btn-cancel { padding: 10px 20px; background: white; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; }
+.btn-confirm { padding: 10px 20px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; }
+.btn-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
 
 @media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .header-actions {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .action-buttons {
-    width: 100%;
-    flex-direction: column;
-  }
-  
-  .btn-action {
-    width: 100%;
-  }
-  
-  .feedback-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .export-dialog {
-    width: 95%;
-    max-height: 90vh;
-  }
-  
-  .field-options {
-    grid-template-columns: 1fr;
-  }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .feedback-header { flex-direction: column; align-items: flex-start; }
 }
 </style>
-
