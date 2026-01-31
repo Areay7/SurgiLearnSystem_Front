@@ -738,12 +738,12 @@ const handleDownload = async (resource: ResourceSharing) => {
     // 先增加下载次数
     await incrementDownload(id)
     
-    // 下载文件
-    const blob = await downloadResource(id)
+    // 下载文件（使用服务端返回的文件名，确保带后缀）
+    const { blob, filename } = await downloadResource(id)
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = resource.resourceName || 'resource'
+    link.download = filename || resource.resourceName || 'resource'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

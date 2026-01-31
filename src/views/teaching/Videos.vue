@@ -2,13 +2,22 @@
   <div class="videos-page">
     <div class="page-header">
       <h1 class="page-title">视频讲座播放</h1>
-      <button 
-        v-if="canUpload" 
-        class="btn-primary" 
-        @click="openUploadDialog"
-      >
-        上传视频
-      </button>
+      <div class="header-actions">
+        <button 
+          v-if="isAdmin && selectedVideoIds.length > 0" 
+          class="btn-danger" 
+          @click="handleDeleteSelected"
+        >
+          删除选中 ({{ selectedVideoIds.length }})
+        </button>
+        <button 
+          v-if="canUpload" 
+          class="btn-primary" 
+          @click="openUploadDialog"
+        >
+          上传视频
+        </button>
+      </div>
     </div>
 
     <div class="layout">
@@ -113,23 +122,35 @@
           <button 
             class="tab-btn" 
             :class="{ active: listMode === 'all' }"
-            @click="listMode = 'all'; loadVideoList()"
+            @click="switchToListAll"
           >
             全部视频
           </button>
           <button 
             class="tab-btn" 
             :class="{ active: listMode === 'favorites' }"
-            @click="listMode = 'favorites'; loadFavorites()"
+            @click="switchToFavorites"
           >
             我的收藏
           </button>
         </div>
         
+        <div v-if="isAdmin && videos.length > 0" class="list-select-bar">
+          <label class="select-all">
+            <input 
+              type="checkbox" 
+              :checked="selectedVideoIds.length === videos.length" 
+              :indeterminate="selectedVideoIds.length > 0 && selectedVideoIds.length < videos.length"
+              @change="handleSelectAllVideos"
+            />
+            全选
+          </label>
+        </div>
+        
         <div class="items">
           <div v-if="loading" class="loading-state">加载中...</div>
           <div v-else-if="videos.length === 0" class="empty-state">暂无视频</div>
-          <button
+          <div
             v-else
             v-for="video in videos"
             :key="video.id"
@@ -137,6 +158,13 @@
             :class="{ active: currentVideo?.id === video.id }"
             @click="selectVideo(video)"
           >
+            <div v-if="isAdmin" class="item-checkbox" @click.stop>
+              <input 
+                type="checkbox" 
+                :checked="selectedVideoIds.includes(video.id!)" 
+                @change="toggleVideoSelect(video.id!)"
+              />
+            </div>
             <div class="thumb">
               <img v-if="video.thumbnailUrl" :src="video.thumbnailUrl" alt="" />
               <span v-else>🎬</span>
@@ -151,7 +179,7 @@
               <div class="type-tag">{{ video.videoType || '未分类' }}</div>
             </div>
             <div v-if="video.isFavorited" class="favorite-mark">★</div>
-          </button>
+          </div>
         </div>
         
         <div class="pagination">
@@ -259,6 +287,8 @@ const authStore = useAuthStore()
 
 // 权限控制
 const canUpload = ref(false)
+const isAdmin = computed(() => authStore.userType === 1)
+const selectedVideoIds = ref<number[]>([])
 const userType = ref<number>(0) // 1-学员 2-讲师 3-管理员
 
 // 当前视频
@@ -388,6 +418,69 @@ const loadVideoTypes = async () => {
     }
   } catch (error) {
     console.error('加载视频类型失败:', error)
+  }
+}
+
+// 切换列表
+const switchToListAll = () => {
+  listMode.value = 'all'
+  selectedVideoIds.value = []
+  loadVideoList()
+}
+const switchToFavorites = () => {
+  listMode.value = 'favorites'
+  selectedVideoIds.value = []
+  loadFavorites()
+}
+
+// 全选/取消全选视频
+const handleSelectAllVideos = () => {
+  if (selectedVideoIds.value.length === videos.value.length) {
+    selectedVideoIds.value = []
+  } else {
+    selectedVideoIds.value = videos.value.map(v => v.id!).filter(Boolean)
+  }
+}
+
+// 切换单个视频选中状态
+const toggleVideoSelect = (id: number) => {
+  const idx = selectedVideoIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedVideoIds.value = selectedVideoIds.value.filter(x => x !== id)
+  } else {
+    selectedVideoIds.value = [...selectedVideoIds.value, id]
+  }
+}
+
+// 删除选中视频
+const handleDeleteSelected = async () => {
+  if (selectedVideoIds.value.length === 0) {
+    alert('请先选择要删除的视频')
+    return
+  }
+  if (!confirm(`确定要删除选中的 ${selectedVideoIds.value.length} 个视频吗？`)) {
+    return
+  }
+  try {
+    const idsToDelete = [...selectedVideoIds.value]
+    const res = await deleteVideo(idsToDelete.join(','))
+    if (res.code === 200 || res.code === 0) {
+      alert('删除成功')
+      selectedVideoIds.value = []
+      if (currentVideo.value && idsToDelete.includes(currentVideo.value.id!)) {
+        currentVideo.value = null
+      }
+      if (listMode.value === 'all') {
+        loadVideoList()
+      } else {
+        loadFavorites()
+      }
+      loadVideoTypes()
+    } else {
+      alert('删除失败：' + (res.msg || '未知错误'))
+    }
+  } catch (e: any) {
+    alert('删除失败：' + (e.message || '未知错误'))
   }
 }
 
@@ -655,6 +748,30 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-danger {
+  padding: 10px 22px;
+  background: #f56c6c;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.25s ease;
+}
+
+.btn-danger:hover {
+  background: #f78989;
+  transform: translateY(-1px);
 }
 
 .page-title {
@@ -840,6 +957,27 @@ onMounted(async () => {
   flex: 1;
 }
 
+.list-select-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: #f9fafb;
+}
+
+.select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-regular);
+}
+
+.select-all input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
 .list-tabs {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -881,6 +1019,7 @@ onMounted(async () => {
 .item {
   width: 100%;
   display: flex;
+  align-items: center;
   gap: 12px;
   padding: 12px;
   border: none;
@@ -890,6 +1029,16 @@ onMounted(async () => {
   border-bottom: 1px solid var(--border-color);
   transition: background 0.3s;
   position: relative;
+}
+
+.item-checkbox {
+  flex-shrink: 0;
+}
+
+.item-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .item:hover {

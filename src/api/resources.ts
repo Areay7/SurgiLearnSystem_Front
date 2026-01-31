@@ -1,4 +1,6 @@
+import axios from 'axios'
 import request from '@/utils/request'
+import { API_BASE_URL } from '@/config/api'
 
 // 资源共享实体
 export interface ResourceSharing {
@@ -127,14 +129,34 @@ export function uploadResource(formData: FormData): Promise<ApiResponse<Resource
 }
 
 /**
- * 下载资源文件
+ * 下载资源文件，返回 blob 和文件名（优先从响应头解析，失败则请求 filename 接口）
  */
-export function downloadResource(id: number): Promise<Blob> {
-  return request({
-    url: `/ResourceSharingController/download/${id}`,
-    method: 'get',
-    responseType: 'blob'
-  })
+export async function downloadResource(id: number): Promise<{ blob: Blob; filename: string }> {
+  const token = localStorage.getItem('token')
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const [blobRes, filenameRes] = await Promise.all([
+    axios.get(`${API_BASE_URL}/ResourceSharingController/download/${id}`, {
+      responseType: 'blob',
+      headers
+    }),
+    axios.get(`${API_BASE_URL}/ResourceSharingController/downloadFilename/${id}`, { headers }).catch(() => null)
+  ])
+  let filename = 'resource'
+  const cd = blobRes.headers?.['content-disposition'] || blobRes.headers?.['Content-Disposition']
+  if (cd) {
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";\n]+)"?/i)
+    if (m && m[1]) {
+      try {
+        filename = decodeURIComponent(m[1].trim().replace(/"/g, ''))
+      } catch {
+        filename = m[1].trim().replace(/"/g, '')
+      }
+    }
+  }
+  if ((!filename || filename === 'resource') && filenameRes?.data?.data) {
+    filename = String(filenameRes.data.data)
+  }
+  return { blob: blobRes.data, filename }
 }
 
 /**

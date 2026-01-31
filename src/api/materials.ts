@@ -1,5 +1,6 @@
+import axios from 'axios'
 import request from '@/utils/request'
-import { FILE_REQUEST_TIMEOUT } from '@/config/api'
+import { API_BASE_URL, FILE_REQUEST_TIMEOUT } from '@/config/api'
 
 // 资料实体
 export interface LearningMaterial {
@@ -111,6 +112,45 @@ export function downloadMaterial(id: number): Promise<Blob> {
     responseType: 'blob',
     timeout: FILE_REQUEST_TIMEOUT
   } as any)
+}
+
+/** 获取资料下载文件名 */
+export async function getMaterialDownloadFilename(id: number): Promise<string> {
+  const token = localStorage.getItem('token')
+  const res = await axios.get(`${API_BASE_URL}/LearningMaterialController/downloadFilename/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  return (res.data?.data != null ? String(res.data.data) : '') || 'download'
+}
+
+/** 下载资料并返回 blob 与文件名（优先从响应头解析，失败则请求 filename 接口） */
+export async function downloadMaterialWithFilename(id: number): Promise<{ blob: Blob; filename: string }> {
+  const token = localStorage.getItem('token')
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const [blobRes, filenameRes] = await Promise.all([
+    axios.get(`${API_BASE_URL}/LearningMaterialController/download/${id}`, {
+      responseType: 'blob',
+      timeout: FILE_REQUEST_TIMEOUT,
+      headers
+    }),
+    axios.get(`${API_BASE_URL}/LearningMaterialController/downloadFilename/${id}`, { headers }).catch(() => null)
+  ])
+  let filename = 'download'
+  const cd = blobRes.headers?.['content-disposition'] || blobRes.headers?.['Content-Disposition']
+  if (cd) {
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";\n]+)"?/i)
+    if (m && m[1]) {
+      try {
+        filename = decodeURIComponent(m[1].trim().replace(/"/g, ''))
+      } catch {
+        filename = m[1].trim().replace(/"/g, '')
+      }
+    }
+  }
+  if ((!filename || filename === 'download') && filenameRes?.data?.data) {
+    filename = String(filenameRes.data.data)
+  }
+  return { blob: blobRes.data, filename }
 }
 
 // 预览资料（blob，带鉴权，本机/他机均可用；长超时）

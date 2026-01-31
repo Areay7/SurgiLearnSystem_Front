@@ -62,20 +62,6 @@
               <template v-else-if="block.blockType === 'video'">
                 <div class="wb-video-container">
                   <div class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</div>
-                  <div class="wb-video-tools">
-                    <label class="wb-speed">
-                      倍速
-                      <select class="wb-speed-select" :value="videoRates[block.id!] || 1" @change="onVideoRateChange(block.id!, $event)">
-                        <option :value="0.5">0.5×</option>
-                        <option :value="0.75">0.75×</option>
-                        <option :value="1">1×</option>
-                        <option :value="1.25">1.25×</option>
-                        <option :value="1.5">1.5×</option>
-                        <option :value="2">2×</option>
-                      </select>
-                    </label>
-                    <button class="btn wb-fullscreen" type="button" @click="toggleVideoFullscreen(block.id!)">全屏</button>
-                  </div>
                   <video
                     :ref="el => setVideoRef(block.id!, el)"
                     :src="previewUrlFor(block.materialId)"
@@ -104,7 +90,7 @@
               <template v-else-if="block.blockType === 'file'">
                 <div class="wb-file-row">
                   <span class="wb-file-name">{{ contentBlockMaterialMap[block.materialId].title || contentBlockMaterialMap[block.materialId].originalName }}</span>
-                  <a :href="downloadUrlFor(block.materialId)" target="_blank" class="btn" @click="onFileDownload(block.id!)">下载</a>
+                  <button type="button" class="btn" :disabled="fileDownloading === block.materialId" @click="handleFileDownload(block.id!, block.materialId!)">下载</button>
                 </div>
               </template>
             </template>
@@ -238,7 +224,7 @@ import { API_BASE_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { getTrainingDetail, getTrainingMaterials, getTrainingMaterialProgressList, getTrainingProgress, reportTrainingMaterialProgress, startTraining } from '@/api/training'
 import type { Training, TrainingMaterial, TrainingProgress } from '@/api/training'
-import { getMaterialsList, type LearningMaterial } from '@/api/materials'
+import { getMaterialsList, downloadMaterialWithFilename, type LearningMaterial } from '@/api/materials'
 import { setTrainingMaterials, getTrainingContentBlocks, reportBlockProgress } from '@/api/trainingAdmin'
 import type { TrainingContentBlock, TrainingContentBlockProgress } from '@/api/trainingAdmin'
 
@@ -271,6 +257,7 @@ const selectedMaterialIds = ref<number[]>([])
 const materialSearch = ref('')
 const loadingMaterials = ref(false)
 const savingConfig = ref(false)
+const fileDownloading = ref<number | null>(null)
 
 const load = async () => {
   const id = trainingId.value
@@ -447,8 +434,6 @@ const textToHtml = (s?: string) => {
 // 白板内嵌预览必须使用“稳定 URL”，否则每次响应式更新都会导致 iframe/video 重新加载形成循环
 const previewUrlFor = (materialId: number) =>
   `${API_BASE_URL}/LearningMaterialController/preview/${materialId}`
-const downloadUrlFor = (materialId: number) =>
-  `${API_BASE_URL}/LearningMaterialController/download/${materialId}`
 
 const guessTypeByExt = (ext?: string) => {
   const lower = (ext || '').toLowerCase()
@@ -550,7 +535,6 @@ const onImageClick = (blockId: number, materialId: number) => {
 
 // 视频和PDF直接预览相关
 const videoRefs = ref<Record<number, HTMLVideoElement>>({})
-const videoRates = ref<Record<number, number>>({})
 const pdfRefs = ref<Record<number, HTMLIFrameElement>>({})
 const videoPlayedBlocks = ref<Record<number, boolean>>({})
 const pdfViewTimers = ref<Record<number, NodeJS.Timeout>>({})
@@ -561,38 +545,6 @@ const pdfLastReportedProgress = ref<Record<number, number>>({})
 const setVideoRef = (blockId: number, el: HTMLVideoElement | null) => {
   if (el) {
     videoRefs.value[blockId] = el
-    // 应用已选倍速（默认 1x）
-    const r = videoRates.value[blockId] ?? 1
-    try { el.playbackRate = r } catch {}
-  }
-}
-
-const onVideoRateChange = (blockId: number, e: Event) => {
-  const v = Number((e.target as HTMLSelectElement).value || 1)
-  videoRates.value[blockId] = v
-  const el = videoRefs.value[blockId]
-  if (el) {
-    try { el.playbackRate = v } catch {}
-  }
-}
-
-const toggleVideoFullscreen = async (blockId: number) => {
-  const el = videoRefs.value[blockId]
-  if (!el) return
-  try {
-    // iOS Safari：优先使用原生全屏
-    const anyEl: any = el as any
-    if (anyEl.webkitEnterFullscreen) {
-      anyEl.webkitEnterFullscreen()
-      return
-    }
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-    } else if (el.requestFullscreen) {
-      await el.requestFullscreen()
-    }
-  } catch {
-    // 忽略失败（部分浏览器策略限制）
   }
 }
 
@@ -613,16 +565,19 @@ const onVideoPlay = (blockId: number) => {
 const videoProgressThrottle = ref<Record<number, NodeJS.Timeout>>({})
 const onVideoTimeUpdate = (blockId: number, event: Event) => {
   const video = event.target as HTMLVideoElement
-  if (video && video.duration) {
-    const progress = Math.round((video.currentTime / video.duration) * 100)
-    // 节流：每2秒上报一次播放进度，避免频繁刷新
-    if (videoProgressThrottle.value[blockId]) {
-      clearTimeout(videoProgressThrottle.value[blockId])
+  if (video) {
+    if (video.duration && !isNaN(video.duration)) {
+      videoCurrentTime.value[blockId] = video.currentTime
+      const progress = Math.round((video.currentTime / video.duration) * 100)
+      // 节流：每2秒上报一次播放进度，避免频繁刷新
+      if (videoProgressThrottle.value[blockId]) {
+        clearTimeout(videoProgressThrottle.value[blockId])
+      }
+      videoProgressThrottle.value[blockId] = setTimeout(() => {
+        reportBlockProgressData(blockId, 'video', { viewed: 1, playProgress: progress }, false)
+        delete videoProgressThrottle.value[blockId]
+      }, 2000)
     }
-    videoProgressThrottle.value[blockId] = setTimeout(() => {
-      reportBlockProgressData(blockId, 'video', { viewed: 1, playProgress: progress }, false)
-      delete videoProgressThrottle.value[blockId]
-    }, 2000)
   }
 }
 
@@ -699,9 +654,36 @@ const checkPdfScroll = (blockId: number) => {
   }
 }
 
-const onFileDownload = (blockId: number) => {
-  // 下载时立即标记为已完成
-  reportBlockProgressData(blockId, 'file', { downloaded: 1 }, true)
+const buildMaterialFilename = (materialId: number) => {
+  const mat = contentBlockMaterialMap.value[materialId]
+  let name = mat?.originalName || mat?.title || 'download'
+  if (!name || name === 'download') return 'download'
+  const hasExt = /\.\w+$/.test(name)
+  if (!hasExt && mat?.fileType) {
+    const ext = mat.fileType.startsWith('.') ? mat.fileType : '.' + mat.fileType
+    name = name + ext
+  }
+  return name
+}
+
+const handleFileDownload = async (blockId: number, materialId: number) => {
+  fileDownloading.value = materialId
+  try {
+    const { blob, filename } = await downloadMaterialWithFilename(materialId)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = (filename && filename !== 'download') ? filename : buildMaterialFilename(materialId)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    reportBlockProgressData(blockId, 'file', { downloaded: 1 }, true)
+  } catch (e: any) {
+    alert('下载失败：' + (e.message || '未知错误'))
+  } finally {
+    fileDownloading.value = null
+  }
 }
 
 // 进度刷新节流：避免频繁刷新总进度
@@ -818,34 +800,9 @@ onUnmounted(() => {
 .wb-file-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .wb-file-name { flex: 1; min-width: 0; font-size: 14px; color: var(--text-primary); margin-bottom: 8px; }
 .wb-video-container, .wb-pdf-container { display: flex; flex-direction: column; gap: 8px; }
-.wb-video { width: 100%; max-height: 400px; border-radius: 6px; border: 1px solid var(--border-color); }
+/* 视频区域高度 2 倍，多出部分为空白 */
+.wb-video { width: 100%; max-height: 1040px; min-height: 640px; border-radius: 6px; border: 1px solid var(--border-color); object-fit: contain; }
 .wb-pdf-iframe { width: 100%; height: 600px; border-radius: 6px; border: 1px solid var(--border-color); }
-
-.wb-video-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.wb-speed {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.wb-speed-select {
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: #fff;
-  font-size: 14px;
-}
-.wb-fullscreen {
-  padding: 8px 12px;
-  border-radius: 10px;
-}
 
 /* ===== 手机端专属优化：培训详情 ===== */
 @media (max-width: 768px) {
@@ -873,8 +830,8 @@ onUnmounted(() => {
   /* 图片：点击区域更大 */
   .wb-preview-img { max-height: 220px; }
 
-  /* 视频：固定一个更舒服的高度 */
-  .wb-video { max-height: 240px; }
+  /* 视频：高度 2 倍，多出部分空白 */
+  .wb-video { max-height: 640px; min-height: 400px; }
 
   /* PDF：手机上不要 600px，改为视口高度 */
   .wb-pdf-iframe { height: 70vh; }

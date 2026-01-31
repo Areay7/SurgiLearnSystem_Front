@@ -41,9 +41,9 @@
           <div class="preview-scale">
             <div class="certificate-sheet">
               <div class="sheet-inner">
-                <div class="sheet-title">培训证书</div>
+                <div class="sheet-title">{{ previewItem?.certificateType || '培训证书' }}</div>
                 <div class="sheet-body">
-                  <div class="p">{{ defaultContent(previewItem) }}</div>
+                  <div class="p body-text">{{ defaultContent(previewItem) }}</div>
                 </div>
                 <div class="sheet-footer">
                   <div class="org">{{ previewItem?.organization || 'SurgiLearn 培训中心' }}</div>
@@ -101,7 +101,7 @@ const defaultContent = (c?: CertificateIssue | null) => {
   const name = c?.holderName || '______'
   const date = c?.issueDate ? formatDate(c.issueDate) : '20xx年x月'
   const course = c?.trainingCourse || '______'
-  return `${name}同志：\n    于${date}参加${course}培训，并已完成全部课程，\n经考核合格，特此发证。`
+  return `${name}同志：\n\n${'　'.repeat(5)}于${date}参加${course}培训，并已完成全部课程，经考核合格，\n特发此证。`
 }
 
 const load = async () => {
@@ -130,6 +130,7 @@ const printCertificate = (c: CertificateIssue) => {
   const date = c.issueDate ? formatDate(c.issueDate) : '20xx年x月'
   const course = c.trainingCourse || '______'
   const org = c.organization || 'SurgiLearn 培训中心'
+  const title = c.certificateType || '培训证书'
   const html = `
   <html><head><title>证书</title>
   <style>
@@ -145,24 +146,22 @@ const printCertificate = (c: CertificateIssue) => {
     .corner.bl{left:16px;bottom:28px;border-right:none;border-top:none;border-radius:0 0 0 12px;}
     .corner.br{right:16px;bottom:28px;border-left:none;border-top:none;border-radius:0 0 12px 0;}
     .title{position:relative;font-size:46px;letter-spacing:10px;text-align:center;margin-top:0;color:#2c3e50;font-weight:800;}
-    .body{position:relative;margin-top:20px;font-size:18px;line-height:1.4;color:#2c3e50;padding:0 70px;}
-    .line2{display:inline-block;margin-left:4.5em;}
+    .body{position:relative;margin-top:4.2em;font-size:18px;line-height:2;color:#2c3e50;padding:0 70px;}
+    .body .p1{margin-bottom:1em;}
+    .body .p2{margin-left:5em;}
+    .body .p3{margin-top:0.3em;}
     .footer{position:absolute;left:70px;right:70px;bottom:105px;font-size:17px;color:#2c3e50;text-align:right;}
     .org{margin-bottom:6px;}
-    /* 盖章：与右下角机构/日期右对齐，不覆盖文字 */
     .stamp{position:absolute;right:70px;bottom:155px;width:160px;opacity:0.9;filter:drop-shadow(0 6px 8px rgba(0,0,0,0.15));}
-    @media print{
-      body{background:#fff;}
-      .sheet{box-shadow:none;margin:0 auto;}
-    }
+    @media print{body{background:#fff;}.sheet{box-shadow:none;margin:0 auto;}}
   </style></head><body onload="window.print()">
     <div class="sheet">
       <div class="sheet-inner">
-        <div class="title">培训证书</div>
+        <div class="title">${title}</div>
         <div class="body">
-          <div>${name}同志：</div>
-          <div class="line2">于${date}参加${course}培训，并已完成全部课程，</div>
-          <div>经考核合格，特此发证。</div>
+          <div class="p1">${name}同志：</div>
+          <div class="p2">于${date}参加${course}培训，并已完成全部课程，经考核合格，</div>
+          <div class="p3">特发此证。</div>
         </div>
         <div class="footer">
           <div class="org">${org}</div>
@@ -216,7 +215,8 @@ onMounted(load)
 .sheet-inner{position:relative; height:100%; padding:28px; background:linear-gradient(180deg,#fffdf6 0%, #ffffff 35%, #fffdf6 100%);}
 .sheet-inner:before{content:''; position:absolute; inset:18px; border:3px solid #c7a45d; border-radius:14px;}
 .sheet-title{position:relative; text-align:center; font-size:44px; letter-spacing:16px; margin-top:18px; color:#2c3e50; font-weight:800;}
-.sheet-body{position:relative; margin-top:44px; padding:0 50px; font-size:18px; line-height:1.9; color:#2c3e50;}
+.sheet-body{position:relative; margin-top:4.2em; padding:0 50px; font-size:18px; line-height:2; color:#2c3e50;}
+.sheet-body .p.body-text{white-space:pre-wrap; text-align:justify; line-height:2;}
 .sheet-footer{position:absolute; left:70px; right:70px; bottom:70px; display:flex; justify-content:flex-end; color:#2c3e50; font-weight:600; text-align:right;}
 .stamp{position:absolute; right:120px; bottom:90px; width:150px; opacity:0.9; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15));}
 .border-corner{position:absolute; width:34px; height:34px; border:3px solid #c7a45d;}

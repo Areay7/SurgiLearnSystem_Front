@@ -97,18 +97,15 @@
               <div class="preview-scale">
                 <div class="certificate-sheet" id="certificate-preview">
                   <div class="sheet-inner">
-                    <div class="sheet-title">培训证书</div>
+                    <div class="sheet-title">{{ form.certificateType || '培训证书' }}</div>
 
                     <div class="sheet-body">
                       <div class="p">
                         <span class="name">{{ form.holderName || '______' }}</span> 同志：
+                        <br /><br />
+                        <span class="line2">于<span class="date">{{ formatCNDate(issueDateStr) }}</span>参加<span class="course">{{ form.trainingCourse || '______' }}</span>培训，并已完成全部课程，经考核合格，</span>
                         <br />
-                        <span class="line2">
-                          于<span class="date">{{ formatCNDate(issueDateStr) }}</span>
-                          参加<span class="course">{{ form.trainingCourse || '______' }}</span>培训，并已完成全部课程，
-                        </span>
-                        <br />
-                        经考核合格，特此发证。
+                        <span class="line3">特发此证。</span>
                       </div>
                       <!-- 去掉可编辑正文模块，统一使用固定模板文案 -->
                     </div>
@@ -179,9 +176,9 @@
           <div class="preview-scale">
             <div class="certificate-sheet">
               <div class="sheet-inner">
-                <div class="sheet-title">培训证书</div>
+                <div class="sheet-title">{{ previewItem?.certificateType || '培训证书' }}</div>
                 <div class="sheet-body">
-                  <div class="p">{{ previewItem?.contentText || defaultContent(previewItem) }}</div>
+                  <div class="p body-text">{{ previewItem?.contentText || defaultContent(previewItem) }}</div>
                 </div>
                 <div class="sheet-footer">
                   <div class="footer-left">
@@ -252,7 +249,7 @@ const defaultContent = (c?: CertificateIssue | null) => {
   const name = c?.holderName || '______'
   const date = c?.issueDate ? formatDate(c.issueDate) : '20xx年x月'
   const course = c?.trainingCourse || '______'
-  return `${name}同志：\n    于${date}参加${course}培训，并已完成全部课程，\n经考核合格，特此发证。`
+  return `${name}同志：\n\n${'　'.repeat(5)}于${date}参加${course}培训，并已完成全部课程，经考核合格，\n特发此证。`
 }
 
 const formatCNDate = (d?: string) => {
@@ -412,6 +409,7 @@ const printCertificate = (c: CertificateIssue) => {
   const date = c.issueDate ? formatDate(c.issueDate) : '20xx年x月'
   const course = c.trainingCourse || '______'
   const org = c.organization || 'SurgiLearn 培训中心'
+  const title = c.certificateType || '培训证书'
   const html = `
   <html><head><title>证书</title>
   <style>
@@ -427,24 +425,22 @@ const printCertificate = (c: CertificateIssue) => {
     .corner.bl{left:16px;bottom:28px;border-right:none;border-top:none;border-radius:0 0 0 12px;}
     .corner.br{right:16px;bottom:28px;border-left:none;border-top:none;border-radius:0 0 12px 0;}
     .title{position:relative;font-size:46px;letter-spacing:10px;text-align:center;margin-top:0;color:#2c3e50;font-weight:800;}
-    .body{position:relative;margin-top:20px;font-size:18px;line-height:1.4;color:#2c3e50;padding:0 70px;}
-    .line2{display:inline-block;margin-left:4.5em;}
+    .body{position:relative;margin-top:4.2em;font-size:18px;line-height:2;color:#2c3e50;padding:0 70px;}
+    .body .p1{margin-bottom:1em;}
+    .body .p2{margin-left:5em;}
+    .body .p3{margin-top:0.3em;}
     .footer{position:absolute;left:70px;right:70px;bottom:105px;font-size:17px;color:#2c3e50;text-align:right;}
     .org{margin-bottom:6px;}
-    /* 盖章：与右下角机构/日期右对齐，不覆盖文字 */
     .stamp{position:absolute;right:70px;bottom:155px;width:160px;opacity:0.9;filter:drop-shadow(0 6px 8px rgba(0,0,0,0.15));}
-    @media print{
-      body{background:#fff;}
-      .sheet{box-shadow:none;margin:0 auto;}
-    }
+    @media print{body{background:#fff;}.sheet{box-shadow:none;margin:0 auto;}}
   </style></head><body onload="window.print()">
     <div class="sheet">
       <div class="sheet-inner">
-        <div class="title">培训证书</div>
+        <div class="title">${title}</div>
         <div class="body">
-          <div>${name}同志：</div>
-          <div class="line2">于${date}参加${course}培训，并已完成全部课程，</div>
-          <div>经考核合格，特此发证。</div>
+          <div class="p1">${name}同志：</div>
+          <div class="p2">于${date}参加${course}培训，并已完成全部课程，经考核合格，</div>
+          <div class="p3">特发此证。</div>
         </div>
         <div class="footer">
           <div class="org">${org}</div>
@@ -531,9 +527,14 @@ onMounted(load)
 .sheet-inner{position:relative; height:100%; padding:28px; background:#fff;}
 .sheet-inner:before{content:''; position:absolute; inset:18px; border:3px solid #c7a45d; border-radius:14px;}
 .sheet-title{position:relative; text-align:center; font-size:44px; letter-spacing:16px; margin-top:18px; color:#2c3e50; font-weight:800;}
-.sheet-body{position:relative; margin-top:44px; padding:0 50px; font-size:18px; line-height:1.9; color:#2c3e50;}
+/* 标题与正文之间空两行 */
+.sheet-body{position:relative; margin-top:4.2em; padding:0 50px; font-size:18px; line-height:2; color:#2c3e50;}
 .sheet-body .name,.sheet-body .date,.sheet-body .course{font-weight:800;}
-.sheet-body .line2{display:inline-block; margin-left:5em;}
+/* 于...课程：左侧与XXX同志：末端对齐 */
+.sheet-body .line2{display:block; margin-left:5em;}
+/* 特发此证：与XXX同志：开头左对齐 */
+.sheet-body .line3{display:block;}
+.sheet-body .p.body-text{white-space:pre-wrap; text-align:justify; line-height:2;}
 .custom-text{white-space:pre-wrap; margin-top:12px; padding:10px 12px; background:rgba(99,102,241,0.06); border:1px dashed rgba(99,102,241,0.35); border-radius:12px;}
 .sheet-footer{position:absolute; right:70px; bottom:70px; color:#2c3e50; font-weight:600;}
 .footer-left{position:relative; width:320px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
