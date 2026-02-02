@@ -144,7 +144,7 @@ import {
   saveBackupConfig,
   executeBackup,
   getBackupList,
-  downloadBackupFile,
+  getBackupDownloadUrl,
   deleteBackup as deleteBackupApi,
   cleanupBackup,
   type BackupConfig,
@@ -261,13 +261,12 @@ async function executeNow() {
 async function downloadBackup(b: BackupRecord) {
   if (!b.id || b.status !== 'success') return
   try {
-    const blob = await downloadBackupFile(b.id)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = b.fileName || 'backup.zip'
-    a.click()
-    URL.revokeObjectURL(url)
+    const url = await getBackupDownloadUrl(b.id)
+    if (!url) {
+      alert('获取下载地址失败')
+      return
+    }
+    window.location.href = url
   } catch (e: any) {
     alert(e?.message || '下载失败')
   }

@@ -220,11 +220,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { API_BASE_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { getTrainingDetail, getTrainingMaterials, getTrainingMaterialProgressList, getTrainingProgress, reportTrainingMaterialProgress, startTraining } from '@/api/training'
 import type { Training, TrainingMaterial, TrainingProgress } from '@/api/training'
-import { getMaterialsList, downloadMaterialWithFilename, type LearningMaterial } from '@/api/materials'
+import { getMaterialsList, downloadMaterialWithFilename, getMaterialPreviewUrl, type LearningMaterial } from '@/api/materials'
 import { getStudentInfo } from '@/api/auth'
 import { setTrainingMaterials, getTrainingContentBlocks, reportBlockProgress } from '@/api/trainingAdmin'
 import type { TrainingContentBlock, TrainingContentBlockProgress } from '@/api/trainingAdmin'
@@ -242,6 +241,7 @@ const training = ref<Training | null>(null)
 const materials = ref<TrainingMaterial[]>([])
 const contentBlocks = ref<(TrainingContentBlock & { id?: number })[]>([])
 const contentBlockMaterialMap = ref<Record<number, LearningMaterial>>({})
+const materialPreviewUrls = ref<Record<number, string>>({})
 const progress = ref<TrainingProgress | null>(null)
 const materialProgressMap = ref<Record<number, { percent: number; completed: boolean }>>({})
 
@@ -288,14 +288,17 @@ const load = async () => {
 
   const materialIds = new Set<number>()
   contentBlocks.value.forEach(b => { if (b.materialId) materialIds.add(b.materialId) })
+  materials.value.forEach(m => { if (m.materialId) materialIds.add(m.materialId) })
   if (materialIds.size > 0) {
     const listRes = await getMaterialsList({ page: 1, limit: 500, status: '已发布' })
     const list: LearningMaterial[] = listRes.data || []
     const map: Record<number, LearningMaterial> = {}
     list.forEach(mat => { if (mat.id && materialIds.has(mat.id)) map[mat.id] = mat })
     contentBlockMaterialMap.value = map
+    loadPreviewUrls(Array.from(materialIds))
   } else {
     contentBlockMaterialMap.value = {}
+    materialPreviewUrls.value = {}
   }
 
   if (studentId.value) {
@@ -307,6 +310,17 @@ const load = async () => {
     }
     await loadMaterialProgress()
   }
+}
+
+const loadPreviewUrls = async (materialIds: number[]) => {
+  const urls: Record<number, string> = {}
+  await Promise.all(materialIds.map(async (id) => {
+    try {
+      const url = await getMaterialPreviewUrl(id)
+      if (url) urls[id] = url
+    } catch { /* ignore */ }
+  }))
+  materialPreviewUrls.value = { ...materialPreviewUrls.value, ...urls }
 }
 
 const loadMaterialProgress = async () => {
@@ -445,9 +459,9 @@ const textToHtml = (s?: string) => {
   if (!s) return ''
   return s.replace(/\n/g, '<br/>')
 }
-// 白板内嵌预览必须使用“稳定 URL”，否则每次响应式更新都会导致 iframe/video 重新加载形成循环
+// 白板内嵌预览使用带 token 的 URL，避免鉴权与 CORS
 const previewUrlFor = (materialId: number) =>
-  `${API_BASE_URL}/LearningMaterialController/preview/${materialId}`
+  materialPreviewUrls.value[materialId] || ''
 
 const guessTypeByExt = (ext?: string) => {
   const lower = (ext || '').toLowerCase()
@@ -458,14 +472,20 @@ const guessTypeByExt = (ext?: string) => {
 }
 
 const openPreview = async (materialId: number, suggestedType?: 'pdf' | 'image' | 'video' | 'other') => {
-  // 弹窗预览可加时间戳避免缓存
-  const url = `${API_BASE_URL}/LearningMaterialController/preview/${materialId}?t=${Date.now()}`
-  previewUrl.value = url
-  previewType.value = suggestedType ?? 'other'
-  showPreview.value = true
-  // 对于非白板模式，仍然使用旧的资料进度上报
-  if (contentBlocks.value.length === 0) {
-    await report(materialId, 1, 0, 0)
+  try {
+    const url = materialPreviewUrls.value[materialId] || await getMaterialPreviewUrl(materialId)
+    if (!url) {
+      alert('获取预览地址失败')
+      return
+    }
+    previewUrl.value = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
+    previewType.value = suggestedType ?? 'other'
+    showPreview.value = true
+    if (contentBlocks.value.length === 0) {
+      await report(materialId, 1, 0, 0)
+    }
+  } catch (e: any) {
+    alert(e?.message || '预览失败')
   }
 }
 

@@ -163,6 +163,14 @@ export function getPreviewBlob(id: number): Promise<Blob> {
   } as any)
 }
 
+/** 获取带 token 的预览地址，用于 img/video/iframe（避免鉴权与 CORS） */
+export function getMaterialPreviewUrl(id: number): Promise<string> {
+  return request({
+    url: `/LearningMaterialController/previewUrl/${id}`,
+    method: 'get'
+  }).then((res: any) => res?.data || '')
+}
+
 export function incrementDownload(id: number): Promise<ApiResponse> {
   return request({
     url: `/LearningMaterialController/incrementDownload/${id}`,

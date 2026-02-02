@@ -36,10 +36,31 @@ service.interceptors.request.use(
 
 // 响应拦截器
 service.interceptors.response.use(
-  (response: AxiosResponse) => {
-    // 如果是文件下载（blob类型），直接返回 data，与 bak_front 一致
+  async (response: AxiosResponse) => {
+    // 文件下载（blob）：需检查状态码，2xx 才返回数据，否则解析错误信息并 reject
     if (response.config.responseType === 'blob') {
-      return response.data
+      if (response.status >= 200 && response.status < 300) {
+        return response.data
+      }
+      try {
+        const blob = response.data as Blob
+        const text = blob ? await blob.text() : ''
+        let msg = `请求失败: ${response.status}`
+        if (text) {
+          try {
+            const errJson = JSON.parse(text)
+            msg = errJson?.msg || errJson?.message || msg
+          } catch { /* use default msg */ }
+        }
+        if (response.status === 401) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('userPhone')
+          window.location.href = '/login'
+        }
+        return Promise.reject(new Error(msg))
+      } catch (e) {
+        return Promise.reject(new Error(response.status === 403 ? '无权限下载' : response.status === 404 ? '文件不存在' : `下载失败: ${response.status}`))
+      }
     }
     
     const res = response.data

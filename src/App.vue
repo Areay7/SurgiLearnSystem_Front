@@ -12,6 +12,11 @@ const systemConfig = useSystemConfigStore()
 
 onMounted(() => {
   systemConfig.fetchDisplayConfig()
+  const savedFontScale = localStorage.getItem('surgilearn_font_scale')
+  if (savedFontScale) {
+    const v = parseInt(savedFontScale, 10)
+    if (v && v !== 100) document.body.style.zoom = (v / 100).toString()
+  }
 })
 
 watch(() => systemConfig.systemName, (name) => {

@@ -217,7 +217,7 @@ const form = ref<UserFeedback>({
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit)))
-const canManage = computed(() => (authStore.userType || 0) === 1 || authStore.hasPermission('user:view'))
+const canManage = computed(() => authStore.hasPermission('feedback:manage') || (authStore.userType || 0) === 1)
 
 function formatTime(t?: string) {
   if (!t) return '-'

@@ -2,7 +2,7 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">移动访问支持</h1>
-      <button class="btn-primary" @click="copyLink">复制访问链接</button>
+      <button class="btn-primary" @click="copyLoginLink">复制登录链接</button>
     </div>
 
     <div class="grid">
@@ -10,57 +10,94 @@
         <h2 class="card-title">响应式适配说明</h2>
         <ul class="list">
           <li>侧边栏在手机端自动折叠为抽屉模式（现有布局已支持）。</li>
-          <li>表格在窄屏下自动转为"卡片列"展示，避免横向滚动。</li>
+          <li>表格在窄屏下自动转为「卡片列」展示，避免横向滚动。</li>
         </ul>
       </div>
 
       <div class="card">
         <h2 class="card-title">移动端入口</h2>
+        <p class="card-desc">扫码后自动跳转登录页面，使用手机号登录即可</p>
         <div class="qr">
           <div class="qr-box">
-            <div class="qr-fake">QR</div>
+            <img
+              v-if="loginUrl && !qrError"
+              :src="qrCodeSrc"
+              alt="扫码访问登录页"
+              class="qr-img"
+              @error="onQrError"
+            />
+            <div v-else-if="qrError" class="qr-placeholder">二维码加载失败<br />请直接复制链接</div>
+            <div v-else class="qr-placeholder">加载中...</div>
           </div>
           <div class="qr-meta">
-            <div class="k">访问地址</div>
-            <div class="v">{{ accessUrl }}</div>
-            <div class="tip">提示：请确保手机与电脑在同一 WiFi；并使用电脑的局域网 IP 访问。</div>
+            <div class="k">登录页地址</div>
+            <div class="v url-text">{{ loginUrl || '-' }}</div>
+            <div class="tip">请确保手机与电脑在同一网络；若使用 localhost，请将其替换为电脑局域网 IP（如 192.168.x.x）后再扫码。</div>
           </div>
         </div>
         <div class="actions">
-          <button class="btn" @click="copyLink">复制链接</button>
-          <button class="btn" @click="copyBackend">复制后端地址</button>
+          <button class="btn" @click="copyLoginLink">复制登录链接</button>
+          <button class="btn" @click="copyBackend">复制后端API地址</button>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <h2 class="card-title">移动端体验清单（建议）</h2>
-      <div class="chips">
-        <span class="chip">大字号模式</span>
-        <span class="chip">手势返回</span>
-        <span class="chip">拍照上传资料</span>
-        <span class="chip">扫码考试</span>
-        <span class="chip">学习提醒</span>
+      <h2 class="card-title">全局字体大小</h2>
+      <p class="card-desc">调整后影响整个系统的文字显示比例</p>
+      <div class="font-size-options">
+        <button
+          v-for="opt in fontScaleOptions"
+          :key="opt.value"
+          class="scale-btn"
+          :class="{ active: fontScale === opt.value }"
+          @click="setFontScale(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { API_BASE_URL } from '@/config/api'
 
-const accessUrl = computed(() => {
+const FONT_SCALE_KEY = 'surgilearn_font_scale'
+
+const fontScaleOptions = [
+  { value: 100, label: '100%（默认）' },
+  { value: 120, label: '120%' },
+  { value: 150, label: '150%' },
+  { value: 175, label: '175%' },
+  { value: 200, label: '200%' }
+]
+
+const fontScale = ref(100)
+const qrError = ref(false)
+
+const loginUrl = computed(() => {
   if (typeof window === 'undefined') return ''
-  return window.location.origin
+  const origin = window.location.origin
+  const base = origin.replace(/\/$/, '')
+  return base + '/login'
 })
+
+const qrCodeSrc = computed(() => {
+  if (!loginUrl.value || qrError.value) return ''
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(loginUrl.value)}`
+})
+
+function onQrError() {
+  qrError.value = true
+}
 
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text)
-    alert('已复制')
+    alert('已复制到剪贴板')
   } catch {
-    // 兼容不支持 clipboard 的浏览器
     const ta = document.createElement('textarea')
     ta.value = text
     ta.style.position = 'fixed'
@@ -69,12 +106,36 @@ async function copyText(text: string) {
     ta.select()
     document.execCommand('copy')
     document.body.removeChild(ta)
-    alert('已复制')
+    alert('已复制到剪贴板')
   }
 }
 
-const copyLink = () => copyText(accessUrl.value)
+const copyLoginLink = () => copyText(loginUrl.value)
 const copyBackend = () => copyText(API_BASE_URL)
+
+function setFontScale(value: number) {
+  fontScale.value = value
+  localStorage.setItem(FONT_SCALE_KEY, String(value))
+  const zoomVal = value === 100 ? '1' : (value / 100).toString()
+  document.body.style.zoom = zoomVal
+}
+
+function initFontScale() {
+  const saved = localStorage.getItem(FONT_SCALE_KEY)
+  if (saved) {
+    const v = parseInt(saved, 10)
+    if (fontScaleOptions.some(o => o.value === v)) {
+      fontScale.value = v
+      if (v !== 100) {
+        document.body.style.zoom = (v / 100).toString()
+      }
+    }
+  }
+}
+
+onMounted(() => {
+  initFontScale()
+})
 </script>
 
 <style scoped>
@@ -113,11 +174,17 @@ const copyBackend = () => copyText(API_BASE_URL)
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 16px;
+  margin-bottom: 16px;
 }
 .card-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.card-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
   margin-bottom: 12px;
 }
 .list {
@@ -128,22 +195,28 @@ const copyBackend = () => copyText(API_BASE_URL)
 .qr {
   display: flex;
   gap: 14px;
-  align-items: center;
+  align-items: flex-start;
 }
 .qr-box {
-  width: 120px;
-  height: 120px;
+  width: 200px;
+  height: 200px;
   border-radius: 10px;
-  border: 1px dashed var(--border-color);
+  border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f7f9fc;
+  flex-shrink: 0;
+  overflow: hidden;
 }
-.qr-fake {
-  font-weight: 800;
+.qr-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.qr-placeholder {
   color: var(--text-secondary);
-  letter-spacing: 2px;
+  font-size: 14px;
 }
 .qr-meta .k {
   font-size: 12px;
@@ -153,11 +226,16 @@ const copyBackend = () => copyText(API_BASE_URL)
   margin-top: 6px;
   font-weight: 600;
   color: var(--text-primary);
+  word-break: break-all;
+}
+.url-text {
+  font-size: 14px;
 }
 .tip {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+  line-height: 1.5;
 }
 .actions {
   display: flex;
@@ -177,18 +255,29 @@ const copyBackend = () => copyText(API_BASE_URL)
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
-.chips {
+
+.font-size-options {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-.chip {
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #ecf5ff;
+.scale-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+.scale-btn:hover {
+  border-color: var(--primary-color);
   color: var(--primary-color);
-  border: 1px solid rgba(64, 158, 255, 0.25);
+}
+.scale-btn.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
 }
 
 @media (max-width: 768px) {
@@ -205,13 +294,11 @@ const copyBackend = () => copyText(API_BASE_URL)
     align-items: flex-start;
   }
   .qr-box {
-    width: 140px;
-    height: 140px;
+    width: 180px;
+    height: 180px;
   }
   .actions {
     flex-wrap: wrap;
   }
 }
 </style>
-
-

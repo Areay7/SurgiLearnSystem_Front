@@ -193,6 +193,7 @@ import { API_BASE_URL } from '@/config/api'
 import type { LearningMaterial } from '@/api/materials'
 import {
   deleteMaterial,
+  getMaterialPreviewUrl,
   getPreviewBlob,
   getMaterialsList,
   uploadMaterial,
@@ -443,7 +444,7 @@ const closePreviewDialog = () => {
 
 const currentPreviewId = ref(0)
 
-// 预览资料：先用直接URL（其他PC可用），如果加载失败再回退到blob方式（本机可用）
+// 预览资料：使用带 token 的 URL（避免鉴权与 CORS），失败时回退 blob
 const preview = async (row: LearningMaterial) => {
   if (!row.id || !row.fileType) {
     alert('无法预览该文件')
@@ -463,10 +464,14 @@ const preview = async (row: LearningMaterial) => {
   previewTitle.value = row.title || row.originalName || '资料预览'
   currentPreviewId.value = row.id
 
-  // 使用直接URL（浏览器原生请求，无CORS问题，支持流式加载/Range请求）
-  previewUrl.value = `${API_BASE_URL}/LearningMaterialController/preview/${row.id}?t=${Date.now()}`
-  showPreviewDialog.value = true
-
+  try {
+    const url = await getMaterialPreviewUrl(row.id)
+    previewUrl.value = url ? url + (url.includes('?') ? '&' : '?') + 't=' + Date.now() : ''
+    showPreviewDialog.value = true
+    if (!previewUrl.value) alert('获取预览地址失败')
+  } catch (e: any) {
+    alert(e?.message || '预览失败')
+  }
   try {
     await incrementView(row.id)
   } catch {

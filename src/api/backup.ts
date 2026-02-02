@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import { FILE_REQUEST_TIMEOUT, BACKUP_REQUEST_TIMEOUT } from '@/config/api'
+import { BACKUP_REQUEST_TIMEOUT } from '@/config/api'
 
 export interface BackupConfig {
   id?: number
@@ -67,13 +67,12 @@ export function getBackupList(params?: { page?: number; limit?: number }) {
   })
 }
 
-export function downloadBackupFile(id: number): Promise<Blob> {
+/** 获取带 token 的下载地址，用于 window.location 导航下载（避免 XHR 跨域与迅雷拦截） */
+export function getBackupDownloadUrl(id: number): Promise<string> {
   return request({
-    url: `/BackupController/download/${id}`,
-    method: 'get',
-    responseType: 'blob',
-    timeout: FILE_REQUEST_TIMEOUT
-  } as any)
+    url: `/BackupController/downloadUrl/${id}`,
+    method: 'get'
+  }).then((res: any) => res?.data || '')
 }
 
 export function deleteBackup(id: number) {
