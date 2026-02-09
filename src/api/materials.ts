@@ -104,6 +104,29 @@ export function uploadMaterial(formData: FormData): Promise<ApiResponse<Learning
   } as any)
 }
 
+/** 获取带 token 的下载地址，用于导航下载（避免鉴权与 CORS） */
+export function getMaterialDownloadUrl(id: number): Promise<string> {
+  return request({
+    url: `/LearningMaterialController/downloadUrl/${id}`,
+    method: 'get'
+  }).then((res: any) => res?.data || '')
+}
+
+/** 通过 blob 方式下载并触发保存（PDF/图片等可被浏览器内嵌的类型也能强制下载） */
+export async function downloadMaterialAsBlob(id: number, filename?: string): Promise<void> {
+  const { blob, filename: fn } = await downloadMaterialWithFilename(id)
+  const name = filename || fn || 'download'
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // 下载资料（使用长超时，避免局域网大文件报“无法连接”）
 export function downloadMaterial(id: number): Promise<Blob> {
   return request({

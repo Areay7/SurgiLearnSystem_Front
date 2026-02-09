@@ -189,10 +189,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { API_BASE_URL } from '@/config/api'
 import type { LearningMaterial } from '@/api/materials'
 import {
   deleteMaterial,
+  downloadMaterialAsBlob,
   getMaterialPreviewUrl,
   getPreviewBlob,
   getMaterialsList,
@@ -416,20 +416,15 @@ const handleDelete = async (ids: number[]) => {
   }
 }
 
-// 下载资料：使用直接URL（绕过axios/CORS问题，支持跨机下载）
-const download = (row: LearningMaterial) => {
+// 下载资料：使用 blob 方式强制触发保存（PDF/图片等也能正确下载，不内嵌打开）
+const download = async (row: LearningMaterial) => {
   if (!row.id) return
-  // 直接打开下载链接，后端设置了 Content-Disposition: attachment
-  const url = `${API_BASE_URL}/LearningMaterialController/download/${row.id}`
-  const a = document.createElement('a')
-  a.href = url
-  a.target = '_blank'
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  // 记录下载次数
-  incrementDownload(row.id).catch(() => {})
+  try {
+    await downloadMaterialAsBlob(row.id, row.originalName || row.title)
+    incrementDownload(row.id).catch(() => {})
+  } catch (e: any) {
+    alert(e?.message || '下载失败')
+  }
 }
 
 const closePreviewDialog = () => {
