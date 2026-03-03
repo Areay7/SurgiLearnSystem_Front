@@ -32,7 +32,11 @@
           <div class="qr-meta">
             <div class="k">登录页地址</div>
             <div class="v url-text">{{ loginUrl || '-' }}</div>
-            <div class="tip">请确保手机与电脑在同一网络；若使用 localhost，请将其替换为电脑局域网 IP（如 192.168.x.x）后再扫码。</div>
+            <div class="tip">
+              请确保手机与电脑在同一网络。
+              <span v-if="localIp">已检测到本机局域网地址：{{ localIp }}；扫码时会使用该地址代替 localhost。</span>
+              <span v-else>如果二维码打开的地址仍是 localhost，请手动替换为电脑局域网 IP（如 192.168.x.x）。</span>
+            </div>
           </div>
         </div>
         <div class="actions">
@@ -77,10 +81,50 @@ const fontScaleOptions = [
 const fontScale = ref(100)
 const qrError = ref(false)
 
+const localIp = ref('')
+
+// attempt to discover local LAN IP via RTCPeerConnection trick
+async function fetchLocalIp(): Promise<string> {
+  return new Promise(resolve => {
+    if (typeof window === 'undefined' || !window.RTCPeerConnection) {
+      return resolve('')
+    }
+    const pc = new RTCPeerConnection({ iceServers: [] })
+    pc.createDataChannel('')
+    pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {})
+    pc.onicecandidate = e => {
+      if (!e.candidate) return
+      const parts = e.candidate.candidate.split(' ')
+      const addr = parts[4]
+      const type = parts[7]
+      if (type === 'host' && addr && !addr.startsWith('127.') && !addr.startsWith('0.0.0.0')) {
+        resolve(addr)
+        pc.onicecandidate = null
+        try { pc.close() } catch {}
+      }
+    }
+    // fallback after a timeout
+    setTimeout(() => {
+      resolve('')
+      try { pc.close() } catch {}
+    }, 3000)
+  })
+}
+
 const loginUrl = computed(() => {
   if (typeof window === 'undefined') return ''
-  const origin = window.location.origin
-  const base = origin.replace(/\/$/, '')
+  let origin = window.location.origin
+  let base = origin.replace(/\/$/, '')
+  // if we've found a LAN ip and current host is localhost/127, substitute it
+  if (localIp.value) {
+    try {
+      const u = new URL(base)
+      if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+        u.hostname = localIp.value
+        base = u.toString().replace(/\/$/, '')
+      }
+    } catch {}
+  }
   return base + '/login'
 })
 
@@ -114,6 +158,7 @@ const copyLoginLink = () => copyText(loginUrl.value)
 const copyBackend = () => copyText(API_BASE_URL)
 
 function setFontScale(value: number) {
+  // nothing
   fontScale.value = value
   localStorage.setItem(FONT_SCALE_KEY, String(value))
   const zoomVal = value === 100 ? '1' : (value / 100).toString()
@@ -133,8 +178,9 @@ function initFontScale() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   initFontScale()
+  localIp.value = await fetchLocalIp()
 })
 </script>
 

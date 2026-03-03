@@ -2,12 +2,21 @@
   <div class="certificate-page">
     <div class="page-header">
       <h1 class="page-title">证书颁发</h1>
-      <button class="btn-primary" @click="openIssueDialog">颁发新证书</button>
+      <div class="header-actions">
+        <button class="btn-primary" @click="openIssueDialog">颁发新证书</button>
+        <button class="btn-action" @click="openFormatDialog">调整格式</button>
+      </div>
     </div>
     
     <div class="certificate-content">
       <div class="filter-bar">
         <input v-model="searchText" type="text" placeholder="搜索学员姓名..." class="search-input" @keyup.enter="load" />
+        <select v-model="statusFilter" class="status-select" @change="load">
+          <option value="">全部状态</option>
+          <option value="有效">有效</option>
+          <option value="无效">无效</option>
+          <option value="已过期">已过期</option>
+        </select>
         <button class="btn-action" @click="load" :disabled="loading">查询</button>
       </div>
       
@@ -20,6 +29,7 @@
               <span>学员：{{ c.holderName || '-' }}</span>
               <span>证书编号：{{ c.certificateId || c.id }}</span>
               <span>颁发日期：{{ formatDate(c.issueDate) }}</span>
+              <span>状态：{{ computeStatus(c) }}</span>
             </p>
           </div>
           <div class="certificate-actions">
@@ -87,6 +97,19 @@
                 </div>
               </div>
 
+              <div class="form-row">
+                <div class="form-group">
+                  <label>状态</label>
+                  <select class="form-input" v-model="form.certificateStatus">
+                    <option value="有效">有效</option>
+                    <option value="无效">无效</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>到期日期</label>
+                  <input class="form-input" type="date" v-model="form.expiryDate" />
+                </div>
+              </div>
               <div class="form-actions">
                 <button class="btn-primary" @click="save" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
               </div>
@@ -95,8 +118,8 @@
             <!-- 证书预览（固定尺寸） -->
             <div class="preview-wrap">
               <div class="preview-scale">
-                <div class="certificate-sheet" id="certificate-preview">
-                  <div class="sheet-inner">
+                <div class="certificate-sheet" id="certificate-preview" :style="previewStyle">
+                  <div class="sheet-inner" :style="previewStyle">
                     <div class="sheet-title">{{ form.certificateType || '培训证书' }}</div>
 
                     <div class="sheet-body">
@@ -174,8 +197,8 @@
         </div>
         <div class="dialog-body">
           <div class="preview-scale">
-            <div class="certificate-sheet">
-              <div class="sheet-inner">
+            <div class="certificate-sheet" :style="previewStyle">
+              <div class="sheet-inner" :style="previewStyle">
                 <div class="sheet-title">{{ previewItem?.certificateType || '培训证书' }}</div>
                 <div class="sheet-body">
                   <div class="p body-text">{{ previewItem?.contentText || defaultContent(previewItem) }}</div>
@@ -201,6 +224,34 @@
         </div>
       </div>
     </div>
+
+    <!-- 格式调整对话框 (仅影响预览样式) -->
+    <div v-if="showFormatDialog" class="dialog-overlay" @click="closeFormatDialog">
+      <div class="dialog format-dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>证书格式调整</h3>
+          <button class="close-btn" @click="closeFormatDialog">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label>字体大小</label>
+            <input type="text" class="form-input" v-model="formatOptions.fontSize" placeholder="例如 18px" />
+          </div>
+          <div class="form-group">
+            <label>内边距</label>
+            <input type="text" class="form-input" v-model="formatOptions.margin" placeholder="例如 28px" />
+          </div>
+          <div class="form-group">
+            <label>盖章宽度</label>
+            <input type="text" class="form-input" v-model="formatOptions.stampWidth" placeholder="例如 150px" />
+          </div>
+          <p class="tip">此设置仅对页面预览有效，不会保存到服务器。</p>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-primary" @click="closeFormatDialog">确定</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -217,6 +268,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const searchText = ref('')
+const statusFilter = ref('') // '' / 有效 / 无效 / 已过期
 
 const showDialog = ref(false)
 const dialogMode = ref<'add'|'edit'>('add')
@@ -241,9 +293,16 @@ const form = reactive<CertificateIssue>({
   trainingCourse: '',
   certificateType: '培训证书',
   organization: 'SurgiLearn 培训中心',
-  certificateStatus: '已颁发'
+  certificateStatus: '有效'
 })
 const issueDateStr = ref<string>(new Date().toISOString().slice(0,10))
+
+const computeStatus = (c: CertificateIssue) => {
+  if (c.expiryDate && new Date(c.expiryDate) < new Date()) {
+    return '已过期'
+  }
+  return c.certificateStatus || '有效'
+}
 
 const defaultContent = (c?: CertificateIssue | null) => {
   const name = c?.holderName || '______'
@@ -273,8 +332,18 @@ const previewStampUrl = computed(() => {
 const load = async () => {
   loading.value = true
   try {
-    const res = await listCertificateIssues({ page: page.value, limit: pageSize.value, searchText: searchText.value || undefined })
-    list.value = res.data || []
+    const res = await listCertificateIssues({
+      page: page.value,
+      limit: pageSize.value,
+      searchText: searchText.value || undefined,
+      certificateStatus: statusFilter.value || undefined
+    })
+    let arr = res.data || []
+    // if filtering valid we should exclude those already expired by date
+    if (statusFilter.value === '有效') {
+      arr = arr.filter(c => computeStatus(c) === '有效')
+    }
+    list.value = arr
     total.value = res.count || 0
   } finally {
     loading.value = false
@@ -293,7 +362,7 @@ const openIssueDialog = () => {
     trainingCourse: '',
     certificateType: '培训证书',
     organization: 'SurgiLearn 培训中心',
-    certificateStatus: '已颁发'
+    certificateStatus: '有效'
   })
   issueDateStr.value = new Date().toISOString().slice(0,10)
   stampPreviewUrl.value = ''
@@ -366,6 +435,9 @@ const save = async () => {
   saving.value = true
   try {
     form.issueDate = issueDateStr.value ? `${issueDateStr.value} 00:00:00` : undefined
+    if (form.expiryDate) {
+      form.expiryDate = `${form.expiryDate} 00:00:00`
+    }
     const payload = { ...form }
     const res = dialogMode.value === 'add'
       ? await addCertificateIssue(payload)
@@ -458,6 +530,25 @@ const printCertificate = (c: CertificateIssue) => {
   w.document.close()
 }
 
+
+// format configuration dialog
+const showFormatDialog = ref(false)
+const formatOptions = reactive({ fontSize: '18px', margin: '28px', stampWidth: '150px' })
+
+function openFormatDialog() {
+  showFormatDialog.value = true
+}
+function closeFormatDialog() {
+  showFormatDialog.value = false
+}
+
+// apply format options as inline style in preview
+const previewStyle = computed(() => ({
+  fontSize: formatOptions.fontSize,
+  padding: formatOptions.margin,
+  '--stamp-width': formatOptions.stampWidth
+}))
+
 onMounted(load)
 </script>
 
@@ -475,6 +566,10 @@ onMounted(load)
 
 .filter-bar { display:flex; gap:12px; margin-bottom:14px; }
 .search-input { flex:1; padding:10px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:14px; background:#fff; }
+.status-select { padding:10px 14px; border:1px solid var(--border-color); border-radius:10px; font-size:14px; background:#fff; }
+
+/* format dialog specific styling */
+.format-dialog .tip { font-size:12px; color:var(--text-secondary); margin-top:6px; }
 
 .certificate-list { background:#fff; border-radius:12px; overflow:hidden; border:1px solid var(--border-color); box-shadow:0 10px 30px rgba(0,0,0,0.06); }
 .certificate-item { display:flex; align-items:flex-start; padding:16px; border-bottom:1px solid var(--border-color); gap:14px; }
@@ -539,7 +634,7 @@ onMounted(load)
 .sheet-footer{position:absolute; right:70px; bottom:70px; color:#2c3e50; font-weight:600;}
 .footer-left{position:relative; width:320px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
 /* 盖章：与机构/日期同一 X 轴，右边对齐（不覆盖文字） */
-.stamp{position:absolute; right:0; bottom:58px; width:150px; opacity:0.9; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15)); pointer-events:none;}
+.stamp{position:absolute; right:0; bottom:58px; width:var(--stamp-width,150px); opacity:0.9; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15)); pointer-events:none;}
 .border-corner{position:absolute; width:34px; height:34px; border:3px solid #c7a45d;}
 .border-corner.tl{left:18px; top:18px; border-right:none; border-bottom:none; border-radius:14px 0 0 0;}
 .border-corner.tr{right:18px; top:18px; border-left:none; border-bottom:none; border-radius:0 14px 0 0;}

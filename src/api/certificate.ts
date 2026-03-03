@@ -32,7 +32,7 @@ export interface PageResponse<T> {
   data: T[]
 }
 
-export function listCertificateIssues(params: { page?: number; limit?: number; searchText?: string }) {
+export function listCertificateIssues(params: { page?: number; limit?: number; searchText?: string; certificateStatus?: string }) {
   return request<PageResponse<CertificateIssue>>({
     url: '/CertificateIssueController/list',
     method: 'get',
