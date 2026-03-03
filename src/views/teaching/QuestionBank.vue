@@ -6,6 +6,7 @@
         <button class="btn-primary" @click="openAddDialog">新增试题</button>
         <button class="btn-action" @click="handleDownloadTemplate" :disabled="downloading">下载导入模板</button>
         <button class="btn-action" @click="triggerImport" :disabled="importing">批量导入Excel</button>
+        <button class="btn-action" @click="handlePrint" :disabled="loading">打印</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
     </div>
@@ -459,7 +460,8 @@ import {
   downloadQuestionBankTemplate,
   getQuestionBankList,
   importQuestionBankExcel,
-  updateQuestionBank
+  updateQuestionBank,
+  getQuestionBankPrint
 } from '@/api/questionBank'
 
 const loading = ref(false)
@@ -844,6 +846,36 @@ const handleImportChange = async (e: Event) => {
     alert(err.message || '导入失败')
   } finally {
     importing.value = false
+  }
+}
+
+// 打印（选中或按筛选）
+const handlePrint = async () => {
+  try {
+    let params: any = {}
+    if (selectedIds.value.length > 0) {
+      params.ids = selectedIds.value.join(',')
+    } else {
+      if (searchForm.searchText) params.searchText = searchForm.searchText
+      if (searchForm.questionType) params.questionType = searchForm.questionType
+      if (searchForm.category) params.category = searchForm.category
+      if (searchForm.difficulty) params.difficulty = searchForm.difficulty
+    }
+
+    const res = await getQuestionBankPrint(params)
+    const html = (res as any).data || res
+    const w = window.open('', '_blank')
+    if (!w) {
+      alert('弹窗被阻止，请允许弹窗以打印')
+      return
+    }
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+    setTimeout(() => { try { w.print() } catch (e) {} }, 300)
+  } catch (err: any) {
+    console.error('打印失败:', err)
+    alert(err.message || '打印失败')
   }
 }
 </script>

@@ -144,3 +144,16 @@ export function importQuestionBankExcel(file: File): Promise<ApiResponse<{ succe
     }
   } as any)
 }
+
+/**
+ * 获取可打印的题目 HTML
+ * 如果传 `ids` 则按 ids 打印，否则按筛选条件打印
+ */
+export function getQuestionBankPrint(params: { ids?: string; searchText?: string; questionType?: string; category?: string; difficulty?: string }): Promise<string> {
+  return request({
+    url: '/QuestionBankController/print',
+    method: 'get',
+    params,
+    responseType: 'text'
+  } as any)
+}
