@@ -11,6 +11,22 @@
     </div>
     
     <div class="training-content">
+      <div class="filter-bar">
+        <input v-model="searchText" class="filter-input" placeholder="搜索培训名称/描述" @keyup.enter="load" />
+        <input v-model="trainingTypeFilter" class="filter-input" placeholder="培训类型" @keyup.enter="load" />
+        <select v-model="statusFilter" class="filter-select" @change="load">
+          <option value="">全部状态</option>
+          <option value="未开始">未开始</option>
+          <option value="进行中">进行中</option>
+          <option value="已完成">已完成</option>
+        </select>
+        <select v-model="requiredFilter" class="filter-select" @change="load">
+          <option value="">全部</option>
+          <option value="1">必修</option>
+          <option value="0">选修</option>
+        </select>
+        <button class="btn-action" @click="load" :disabled="loading">查询</button>
+      </div>
       <div class="training-cards">
         <div class="training-card" v-for="item in list" :key="item.id">
           <div class="card-header">
@@ -22,8 +38,10 @@
           <p class="card-description">{{ item.description || '—' }}</p>
           <div class="card-info">
             <span>👨‍🏫 讲师：{{ item.instructorName || '—' }}</span>
-            <span>👨‍🎓 学员：{{ item.currentParticipants ?? 0 }}人</span>
+            <span>👨‍🎓 学员：{{ item.currentParticipants ?? 0 }} / {{ item.maxParticipants ?? '∞' }} 人</span>
             <span>📅 时间：{{ formatDate(item.startDate) }} ~ {{ formatDate(item.endDate) }}</span>
+            <span>必修：{{ item.required === 1 ? '是' : '否' }}</span>
+            <span>班级：{{ (item as any).classIds ? (item as any).classIds.length : 0 }}</span>
           </div>
           <div class="card-actions">
             <!-- 有管理权限：编辑 + 编辑内容 + 查看进度 -->
@@ -81,6 +99,19 @@
             <div class="form-group">
               <label>结束日期</label>
               <input type="date" class="form-input" v-model="form.endDate" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>学生上限</label>
+              <input type="number" min="0" class="form-input" v-model.number="form.maxParticipants" />
+            </div>
+            <div class="form-group">
+              <label>是否必修</label>
+              <select class="form-input" v-model.number="form.required">
+                <option :value="1">是</option>
+                <option :value="0">否</option>
+              </select>
             </div>
           </div>
           <div class="form-group">
@@ -163,6 +194,10 @@ const list = ref<Training[]>([])
 const page = ref(1)
 const pageSize = ref(10)
 const deleteMode = ref(false)
+const searchText = ref('')
+const trainingTypeFilter = ref('')
+const statusFilter = ref('')
+const requiredFilter = ref('')
 
 const showDialog = ref(false)
 const dialogMode = ref<'add'|'edit'>('add')
@@ -196,9 +231,18 @@ const classOptions = ref<TeachingClass[]>([])
 const classLoading = ref(false)
 
 const load = async () => {
+  // whenever loading fresh list due to query, start from first page
+  if (page.value !== 1) page.value = 1
   loading.value = true
   try {
-    const res = await getTrainingList({ page: page.value, limit: pageSize.value })
+    const res = await getTrainingList({
+      page: page.value,
+      limit: pageSize.value,
+      searchText: searchText.value || undefined,
+      trainingType: trainingTypeFilter.value || undefined,
+      status: statusFilter.value || undefined,
+      required: requiredFilter.value || undefined
+    })
     list.value = res.data || []
   } catch (e: any) {
     alert(e.message || '加载失败')
@@ -294,6 +338,8 @@ const openEdit = async (item: Training) => {
     endDate: item.endDate ? String(item.endDate).substring(0, 10) : '',
     instructorId: item.instructorId || '',
     instructorName: item.instructorName || '',
+    maxParticipants: item.maxParticipants,
+    required: item.required || 0,
     classIds: (item as any).classIds || []
   })
   loadClassOptions()
@@ -402,6 +448,21 @@ const chooseInstructor = (s: Students) => {
 .training-page {
   max-width: 100%;
 }
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.filter-input, .filter-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.filter-select { background: #fff; }
 
 .page-header {
   display: flex;

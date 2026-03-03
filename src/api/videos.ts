@@ -26,6 +26,7 @@ export interface VideoListParams {
   page?: number
   limit?: number
   videoType?: string
+  category?: string
   searchText?: string
 }
 
@@ -55,6 +56,9 @@ export function getVideoList(params: VideoListParams): Promise<PageResponse<Vide
   
   if (params.videoType) {
     requestParams.videoType = params.videoType
+  }
+  if (params.category) {
+    requestParams.category = params.category
   }
   if (params.searchText) {
     requestParams.searchText = params.searchText

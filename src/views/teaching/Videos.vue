@@ -122,6 +122,10 @@
               {{ type }}
             </option>
           </select>
+          <select v-model="selectedCategory" @change="handleTypeChange" class="select">
+            <option value="">全部分类</option>
+            <option v-for="c in videoCategories" :key="c" :value="c">{{ c }}</option>
+          </select>
         </div>
         
         <div class="list-tabs">
@@ -184,6 +188,7 @@
                 观看{{ video.viewCount || 0 }}次
               </div>
               <div class="type-tag">{{ video.videoType || '未分类' }}</div>
+              <div class="type-tag small">{{ video.category || '无分类' }}</div>
             </div>
             <div v-if="canFavorite && video.isFavorited" class="favorite-mark">★</div>
           </div>
@@ -237,6 +242,13 @@
                 {{ type }}
               </option>
               <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>分类</label>
+            <select v-model="uploadForm.category" class="form-input">
+              <option value="">请选择分类</option>
+              <option v-for="c in videoCategories" :key="c" :value="c">{{ c }}</option>
             </select>
           </div>
           <div class="form-group">
@@ -323,6 +335,8 @@ const displayDuration = computed(() => {
 const videos = ref<Video[]>([])
 const videoTypes = ref<string[]>([])
 const selectedType = ref('')
+const videoCategories = ref<string[]>(['护理技巧','案例分析','经验分享','其他'])
+const selectedCategory = ref('')
 const searchText = ref('')
 const listMode = ref<'all' | 'favorites'>('all')
 
@@ -374,6 +388,7 @@ const loadVideoList = async () => {
       page: currentPage.value,
       limit: pageSize,
       videoType: selectedType.value || undefined,
+      category: selectedCategory.value || undefined,
       searchText: searchText.value || undefined
     })
     
@@ -666,7 +681,8 @@ const openUploadDialog = () => {
   uploadForm.value = {
     videoTitle: '',
     videoType: '',
-    description: ''
+    description: '',
+    category: ''
   }
   selectedFile.value = null
   if (fileInput.value) {
@@ -703,6 +719,7 @@ const handleUpload = async () => {
     formData.append('file', selectedFile.value)
     formData.append('videoTitle', uploadForm.value.videoTitle.trim())
     formData.append('videoType', uploadForm.value.videoType)
+    formData.append('category', uploadForm.value.category || '')
     formData.append('description', uploadForm.value.description?.trim() || '')
     formData.append('instructorId', authStore.userPhone || '')
     formData.append('instructorName', authStore.nickname || authStore.userPhone || '')

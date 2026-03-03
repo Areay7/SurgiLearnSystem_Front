@@ -12,6 +12,7 @@ export interface Training {
   instructorName?: string
   maxParticipants?: number
   currentParticipants?: number
+  required?: number // 1=必修
   status?: string
   createTime?: string
   updateTime?: string
@@ -56,7 +57,7 @@ export interface ApiResponse<T = any> {
   count?: number
 }
 
-export function getTrainingList(params: any): Promise<ApiResponse<Training[]>> {
+export function getTrainingList(params: { page?: number; limit?: number; searchText?: string; trainingType?: string; status?: string; required?: number }): Promise<ApiResponse<Training[]>> {
   return request({
     url: '/TrainingController/list',
     method: 'get',
