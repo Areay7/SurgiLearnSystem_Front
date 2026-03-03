@@ -66,7 +66,25 @@
         <div class="dialog-body">
           <form @submit.prevent="handleRegister" class="register-form">
             <div class="form-group">
-              <label>手机号</label>
+              <label>用户名 <span class="required">*</span></label>
+              <input
+                v-model="registerForm.nickname"
+                type="text"
+                placeholder="请输入用户名（姓名）"
+                class="form-input"
+              />
+            </div>
+            <div class="form-group">
+              <label>工号</label>
+              <input
+                v-model="registerForm.employeeId"
+                type="text"
+                placeholder="请输入工号（选填）"
+                class="form-input"
+              />
+            </div>
+            <div class="form-group">
+              <label>手机号 <span class="required">*</span></label>
               <input
                 v-model="registerForm.phone"
                 type="text"
@@ -75,7 +93,7 @@
               />
             </div>
             <div class="form-group">
-              <label>密码</label>
+              <label>密码 <span class="required">*</span></label>
               <input
                 v-model="registerForm.password"
                 type="password"
@@ -84,7 +102,7 @@
               />
             </div>
             <div class="form-group">
-              <label>确认密码</label>
+              <label>确认密码 <span class="required">*</span></label>
               <input
                 v-model="registerForm.confirmPassword"
                 type="password"
@@ -95,8 +113,8 @@
             <div v-if="errorMessage" class="error-message">
               {{ errorMessage }}
             </div>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               class="register-btn"
               :disabled="authStore.loading"
             >
@@ -128,6 +146,8 @@ const form = ref({
 const errorMessage = ref('')
 const showRegisterDialog = ref(false)
 const registerForm = ref({
+  nickname: '',
+  employeeId: '',
   phone: '',
   password: '',
   confirmPassword: ''
@@ -188,44 +208,53 @@ const handleLogin = async () => {
 // 处理注册
 const handleRegister = async () => {
   errorMessage.value = ''
-  
+
+  if (!registerForm.value.nickname.trim()) {
+    errorMessage.value = '请输入用户名'
+    return
+  }
+
   if (!registerForm.value.phone.trim()) {
     errorMessage.value = '请输入手机号'
     return
   }
-  
+
   if (!registerForm.value.password.trim()) {
     errorMessage.value = '请输入密码'
     return
   }
-  
+
   if (registerForm.value.password.length < 6) {
     errorMessage.value = '密码长度至少6位'
     return
   }
-  
+
   if (registerForm.value.password !== registerForm.value.confirmPassword) {
     errorMessage.value = '两次输入的密码不一致'
     return
   }
-  
+
   const phoneRegex = /^1[3-9]\d{9}$/
   if (!phoneRegex.test(registerForm.value.phone)) {
     errorMessage.value = '请输入正确的手机号'
     return
   }
-  
+
   try {
     const success = await authStore.register(
       registerForm.value.phone,
-      registerForm.value.password
+      registerForm.value.password,
+      registerForm.value.nickname,
+      registerForm.value.employeeId || undefined
     )
-    
+
     if (success) {
       alert('注册成功，请登录')
       showRegisterDialog.value = false
       form.value.phone = registerForm.value.phone
       registerForm.value = {
+        nickname: '',
+        employeeId: '',
         phone: '',
         password: '',
         confirmPassword: ''
@@ -244,6 +273,8 @@ const openRegisterDialog = () => {
   showRegisterDialog.value = true
   errorMessage.value = ''
   registerForm.value = {
+    nickname: '',
+    employeeId: '',
     phone: '',
     password: '',
     confirmPassword: ''
@@ -494,6 +525,11 @@ const openRegisterDialog = () => {
 .register-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.required {
+  color: #f56c6c;
+  margin-left: 2px;
 }
 
 @media (max-width: 480px) {

@@ -64,9 +64,10 @@
               <div class="reply-time" v-if="fb.replyTime">{{ formatTime(fb.replyTime) }}</div>
             </div>
             <div class="feedback-actions" v-if="canManage">
+              <button class="btn-sm" v-if="canEditItem(fb)" @click="openEditDialog(fb)">编辑</button>
               <button class="btn-sm" @click="openReplyDialog(fb)">回复</button>
               <button class="btn-sm" @click="openStatusDialog(fb)">更新状态</button>
-              <button class="btn-sm danger" @click="handleDelete(fb)">删除</button>
+              <button class="btn-sm danger" v-if="canDeleteItem(fb)" @click="handleDelete(fb)">删除</button>
             </div>
           </div>
         </div>
@@ -84,7 +85,7 @@
     <div v-if="showSubmitDialog" class="dialog-overlay" @click="showSubmitDialog = false">
       <div class="dialog" @click.stop>
         <div class="dialog-header">
-          <h3>提交反馈</h3>
+          <h3>{{ isEditing ? '编辑反馈' : '提交反馈' }}</h3>
           <button class="close-btn" @click="showSubmitDialog = false">×</button>
         </div>
         <form class="dialog-body" @submit.prevent="submitFeedback">
@@ -121,7 +122,7 @@
           </div>
           <div class="dialog-footer">
             <button type="button" class="btn-cancel" @click="showSubmitDialog = false">取消</button>
-            <button type="submit" class="btn-confirm" :disabled="submitting">提交</button>
+            <button type="submit" class="btn-confirm" :disabled="submitting">{{ isEditing ? '保存' : '提交' }}</button>
           </div>
         </form>
       </div>
@@ -207,11 +208,14 @@ const editStatus = ref('')
 const currentFeedback = ref<UserFeedback | null>(null)
 const trainingList = ref<any[]>([])
 
+// editing support
+const isEditing = ref(false)
+
 const form = ref<UserFeedback>({
   title: '',
   content: '',
   rating: 0,
-    feedbackType: '系统建议',
+  feedbackType: '系统建议',
   relateId: undefined,
   relateName: ''
 })
@@ -272,7 +276,29 @@ function openSubmitDialog() {
     alert('请先登录')
     return
   }
+  isEditing.value = false
   form.value = { title: '', content: '', rating: 0, feedbackType: '系统建议' }
+  loadTrainingList()
+  showSubmitDialog.value = true
+}
+
+function openEditDialog(fb: UserFeedback) {
+  if (!authStore.isLoggedIn) {
+    alert('请先登录')
+    return
+  }
+  isEditing.value = true
+  currentFeedback.value = fb
+  // copy the editable fields
+  form.value = {
+    id: fb.id,
+    title: fb.title || '',
+    content: fb.content || '',
+    rating: fb.rating || 0,
+    feedbackType: fb.feedbackType || '系统建议',
+    relateId: fb.relateId,
+    relateName: fb.relateName
+  }
   loadTrainingList()
   showSubmitDialog.value = true
 }
@@ -290,20 +316,28 @@ async function submitFeedback() {
   submitting.value = true
   try {
     const rel = trainingList.value.find(t => t.id === form.value.relateId)
-    const data: UserFeedback = {
+    const base: UserFeedback = {
       ...form.value,
       userName: authStore.nickname || authStore.userPhone || '',
       relateName: rel?.trainingName || rel?.training_name || ''
     }
-    const res = await addFeedback(data)
+
+    let res: any
+    if (isEditing.value && form.value.id) {
+      // editing existing feedback
+      res = await updateFeedback(base)
+    } else {
+      res = await addFeedback(base)
+    }
+
     if (res?.code === 200 || res?.code === 0) {
       showSubmitDialog.value = false
       loadList()
     } else {
-      alert(res?.msg || '提交失败')
+      alert(res?.msg || (isEditing.value ? '保存失败' : '提交失败'))
     }
   } catch (e: any) {
-    alert(e?.message || '提交失败')
+    alert(e?.message || (isEditing.value ? '保存失败' : '提交失败'))
   } finally {
     submitting.value = false
   }
@@ -369,6 +403,22 @@ async function handleDelete(fb: UserFeedback) {
   } catch (e: any) {
     alert(e?.message || '删除失败')
   }
+}
+
+function canEditItem(fb: UserFeedback) {
+  // managers can always edit; owners can edit before processing
+  if (canManage.value) return true
+  const phone = authStore.userPhone
+  if (phone && fb.userId === phone) {
+    return !fb.status || fb.status === '待处理'
+  }
+  return false
+}
+
+function canDeleteItem(fb: UserFeedback) {
+  if (canManage.value) return true
+  const phone = authStore.userPhone
+  return phone && fb.userId === phone
 }
 
 function handleExport() {

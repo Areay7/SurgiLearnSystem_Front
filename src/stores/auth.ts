@@ -109,17 +109,17 @@ export const useAuthStore = defineStore('auth', () => {
   }
   
   // 注册方法
-  const register = async (phone: string, password: string) => {
+  const register = async (phone: string, password: string, nickname: string, employeeId?: string) => {
     if (!phone.trim() || !password.trim()) {
       throw new Error('请输入手机号和密码')
     }
-    
+
     loading.value = true
     try {
       console.log('开始注册，手机号:', phone)
-      const response = await registerApi({ phone, password })
+      const response = await registerApi({ phone, password, nickname, employeeId })
       console.log('注册响应:', response)
-      
+
       if (response.code === 200 || response.code === 0) {
         return true
       } else {

@@ -10,6 +10,8 @@ export interface LoginRequest {
 export interface RegisterRequest {
   phone: string
   password: string
+  nickname: string
+  employeeId?: string
 }
 
 // 修改密码请求参数
