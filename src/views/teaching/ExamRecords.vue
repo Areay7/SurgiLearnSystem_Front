@@ -68,11 +68,11 @@
             <td>{{ row.examName || '-' }}</td>
             <td>{{ row.studentName || '-' }}</td>
             <td>{{ row.studentId || '-' }}</td>
-            <td>{{ row.totalScore ?? '-' }}</td>
+            <td>{{ formatScore(row.totalScore) }}</td>
             <td>
-              <span :class="getScoreClass(row)">{{ row.obtainedScore ?? '-' }}</span>
+              <span :class="getScoreClass(row)">{{ formatScore(row.obtainedScore) }}</span>
             </td>
-            <td>{{ row.passScore ?? '-' }}</td>
+            <td>{{ formatScore(row.passScore) }}</td>
             <td>
               <span class="status-badge" :class="getStatusClass(row.status)">
                 {{ row.status || '-' }}
@@ -191,6 +191,16 @@ const getScoreClass = (row: ExamResult) => {
   const pass = row.passScore ?? 0
   if (score >= pass) return 'score-pass'
   return 'score-fail'
+}
+
+const formatScore = (val?: number) => {
+  if (val == null) return '-'
+  try {
+    // ensure number and format to two decimals
+    return Number(val).toFixed(2)
+  } catch {
+    return String(val)
+  }
 }
 
 const getStatusClass = (status?: string) => {

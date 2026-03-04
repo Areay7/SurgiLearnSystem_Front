@@ -14,6 +14,11 @@ export interface Exam {
   passScore?: number
   questionIds?: string // 题目ID列表，逗号分隔或JSON格式
   status?: string // 未开始、进行中、已结束、待阅卷
+  // 教师、出勤、地点、备注
+  teacher?: string
+  attendance?: number
+  location?: string
+  remark?: string
   creatorId?: string
   creatorName?: string
   createTime?: string

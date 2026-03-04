@@ -101,8 +101,20 @@
               <span class="value">{{ row.duration || 0 }} 分钟</span>
             </div>
             <div class="me-row">
+              <span class="label">教师</span>
+              <span class="value">{{ row.teacher || '-' }}</span>
+            </div>
+            <div class="me-row">
+              <span class="label">地点</span>
+              <span class="value">{{ row.location || '-' }}</span>
+            </div>
+            <div class="me-row">
+              <span class="label">出勤</span>
+              <span class="value">{{ row.attendance ?? '-' }}</span>
+            </div>
+            <div class="me-row">
               <span class="label">总分/及格</span>
-              <span class="value">{{ row.totalScore || 0 }} / {{ row.passScore || 0 }}</span>
+              <span class="value">{{ formatScore(row.totalScore) }} / {{ formatScore(row.passScore) }}</span>
             </div>
             <div class="me-row">
               <span class="label">题量</span>
@@ -112,6 +124,10 @@
             <div class="me-row">
               <span class="label">状态</span>
               <span class="status-badge" :class="getStatusClass(row.status)">{{ row.status || '未开始' }}</span>
+            </div>
+            <div class="me-row">
+              <span class="label">备注</span>
+              <span class="value">{{ row.remark || '-' }}</span>
             </div>
 
             <div class="me-actions">
@@ -141,12 +157,16 @@
               <th width="100">ID</th>
               <th width="250">考试名称</th>
               <th width="120">考试类型</th>
+              <th width="120">教师</th>
               <th width="180">考试时间</th>
+              <th width="120">地点</th>
               <th width="100">时长(分钟)</th>
+              <th width="80">出勤</th>
               <th width="80">总分</th>
               <th width="80">及格分</th>
               <th width="80">题量</th>
               <th width="100">状态</th>
+              <th width="200">备注</th>
               <th width="180">创建时间</th>
             </tr>
           </thead>
@@ -175,8 +195,8 @@
                 <div class="time-info">{{ row.startTime || '' }} - {{ row.endTime || '' }}</div>
               </td>
               <td>{{ row.duration || 0 }}</td>
-              <td>{{ row.totalScore || 0 }}</td>
-              <td>{{ row.passScore || 0 }}</td>
+              <td>{{ formatScore(row.totalScore) }}</td>
+              <td>{{ formatScore(row.passScore) }}</td>
               <td>{{ getQuestionCount(row.questionIds) }}</td>
               <td>
                 <span class="status-badge" :class="getStatusClass(row.status)">
@@ -306,6 +326,24 @@
                   <option value="待阅卷">待阅卷</option>
                 </select>
               </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>教师</label>
+                <input type="text" class="form-input" v-model="editForm.teacher" maxlength="100" :disabled="saving" />
+              </div>
+              <div class="form-group">
+                <label>出勤</label>
+                <input type="number" class="form-input" v-model.number="editForm.attendance" min="0" :disabled="saving" />
+              </div>
+              <div class="form-group">
+                <label>地点</label>
+                <input type="text" class="form-input" v-model="editForm.location" maxlength="200" :disabled="saving" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>备注</label>
+              <textarea class="form-input" v-model="editForm.remark" rows="3" :disabled="saving"></textarea>
             </div>
             
             <div class="form-group">
@@ -555,6 +593,10 @@ const editForm = reactive<Exam & { classIds?: number[] }>({
   passScore: 0,
   questionIds: '',
   status: '未开始',
+  teacher: '',
+  attendance: 0,
+  location: '',
+  remark: '',
   classIds: []
 })
 
@@ -669,6 +711,10 @@ const openAddDialog = () => {
     passScore: 0,
     questionIds: '',
     status: '未开始',
+    teacher: '',
+    attendance: 0,
+    location: '',
+    remark: '',
     classIds: []
   })
   examDateStr.value = ''
@@ -684,8 +730,15 @@ const openEditDialog = async (row: Exam) => {
   loadClassOptions()
   try {
     const res = await getExamDetail(row.id!)
-    if (res.data && (res.data as any).classIds) {
-      editForm.classIds = (res.data as any).classIds
+    if (res.data) {
+      if ((res.data as any).classIds) {
+        editForm.classIds = (res.data as any).classIds
+      }
+      // 将服务端最新字段覆盖
+      editForm.teacher = (res.data as any).teacher || ''
+      editForm.attendance = (res.data as any).attendance || 0
+      editForm.location = (res.data as any).location || ''
+      editForm.remark = (res.data as any).remark || ''
     }
   } catch {
     // 使用默认
@@ -864,6 +917,18 @@ const handleSave = async () => {
     alert('请输入有效的及格分')
     return
   }
+  if (editForm.attendance !== undefined && editForm.attendance < 0) {
+    alert('出勤人数不能为负')
+    return
+  }
+  if (editForm.teacher && editForm.teacher.length > 100) {
+    alert('教师名称过长，最多100字符')
+    return
+  }
+  if (editForm.location && editForm.location.length > 200) {
+    alert('教学地点过长，最多200字符')
+    return
+  }
   // 总分由选题自动计算，允许为0（未选题）。如总分>0，则及格分必须<=总分
   const totalScore = editForm.totalScore || 0
   if (totalScore > 0 && editForm.passScore > totalScore) {
@@ -981,6 +1046,16 @@ const formatDateTime = (dateStr?: string) => {
     }).replace(/\//g, '-')
   } catch {
     return dateStr
+  }
+}
+
+// 格式化分数显示为两位小数
+const formatScore = (val?: number) => {
+  if (val == null || val === '') return '-'
+  try {
+    return Number(val).toFixed(2)
+  } catch {
+    return String(val)
   }
 }
 

@@ -4,6 +4,8 @@
       <div class="exam-info">
         <h2 class="exam-title">{{ examInfo.examName || '考试中' }}</h2>
         <div class="exam-meta">
+          <span>教师：{{ examInfo.teacher || '-' }}</span>
+          <span>地点：{{ examInfo.location || '-' }}</span>
           <span>考试时长：{{ examInfo.duration || 0 }} 分钟</span>
           <span>总分：{{ examInfo.totalScore || 0 }} 分</span>
           <span>及格分：{{ examInfo.passScore || 0 }} 分</span>
