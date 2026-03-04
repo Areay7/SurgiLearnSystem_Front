@@ -82,3 +82,21 @@ export function getProgressDetail(id: number): Promise<ApiResponse<ProgressDetai
     method: 'get'
   })
 }
+
+// 更新进度记录
+export function updateProgress(data: any): Promise<ApiResponse> {
+  return request({
+    url: '/TrainingProgressController/edit',
+    method: 'post',
+    data
+  })
+}
+
+// 删除进度记录，ids 用逗号分隔
+export function deleteProgress(ids: string): Promise<ApiResponse> {
+  return request({
+    url: '/TrainingProgressController/remove',
+    method: 'delete',
+    params: { ids }
+  })
+}

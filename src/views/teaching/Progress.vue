@@ -81,6 +81,8 @@
 
           <div class="mc-actions">
             <button class="btn primary" @click="viewDetail(item)">查看详情</button>
+            <button class="btn" @click="openEdit(item)">编辑</button>
+            <button class="btn danger" @click="removeItem(item)">删除</button>
           </div>
         </div>
 
@@ -128,6 +130,8 @@
           </div>
           <div class="td actions">
             <button class="btn" @click="viewDetail(item)">详情</button>
+            <button class="btn" @click="openEdit(item)">编辑</button>
+            <button class="btn danger" @click="removeItem(item)">删除</button>
           </div>
         </div>
         <div class="tr empty-row" v-if="progressList.length === 0">
@@ -237,12 +241,57 @@
         </div>
       </div>
     </div>
+
+    <!-- 编辑弹窗 -->
+    <div v-if="showEditDialog" class="dialog-overlay" @click="showEditDialog = false">
+      <div class="dialog edit-dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>编辑学习进度</h3>
+          <button class="close-btn" @click="showEditDialog = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="edit-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>进度百分比</label>
+                <input type="number" class="form-input" v-model.number="editForm.progressPercent" min="0" max="100" />
+              </div>
+              <div class="form-group">
+                <label>已完成数</label>
+                <input type="number" class="form-input" v-model.number="editForm.completedCount" min="0" />
+              </div>
+              <div class="form-group">
+                <label>总数</label>
+                <input type="number" class="form-input" v-model.number="editForm.totalCount" min="0" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>状态</label>
+                <select class="form-input" v-model="editForm.status">
+                  <option value="学习中">学习中</option>
+                  <option value="已完成">已完成</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>最近学习时间</label>
+                <input type="datetime-local" class="form-input" v-model="editForm.lastStudyTime" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showEditDialog = false">取消</button>
+          <button class="btn-confirm" @click="handleEditSave" :disabled="savingEdit">{{ savingEdit ? '保存中...' : '保存' }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getProgressList, getProgressStatistics, getProgressDetail } from '@/api/progress'
+import { getProgressList, getProgressStatistics, getProgressDetail, updateProgress, deleteProgress } from '@/api/progress'
 import type { ProgressDetail } from '@/api/progress'
 import { getTrainingList } from '@/api/training'
 import type { Training, TrainingProgress } from '@/api/training'
@@ -273,6 +322,17 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.v
 const showDetailDialog = ref(false)
 const detailData = ref<ProgressDetail | null>(null)
 const loadingDetail = ref(false)
+// 编辑弹窗与表单
+const showEditDialog = ref(false)
+const savingEdit = ref(false)
+const editForm = reactive({
+  id: undefined as number | undefined,
+  progressPercent: undefined as number | undefined,
+  completedCount: undefined as number | undefined,
+  totalCount: undefined as number | undefined,
+  status: '' as string,
+  lastStudyTime: '' as string
+})
 
 const isMobile = computed(() => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches)
 
@@ -370,6 +430,80 @@ const viewDetail = async (item: TrainingProgress) => {
 const closeDetail = () => {
   showDetailDialog.value = false
   detailData.value = null
+}
+
+// 打开编辑弹窗
+const openEdit = async (item: TrainingProgress) => {
+  if (!item.id) {
+    alert('记录ID不存在')
+    return
+  }
+  try {
+    const res = await getProgressDetail(item.id)
+    if (res.code === 0 || res.code === 200) {
+      const d = res.data
+      if (d && d.progress) {
+        editForm.id = d.progress.id
+        editForm.progressPercent = d.progress.progressPercent ?? 0
+        editForm.completedCount = d.progress.completedCount ?? 0
+        editForm.totalCount = d.progress.totalCount ?? 0
+        editForm.status = d.progress.status || ''
+        editForm.lastStudyTime = d.progress.lastStudyTime ? new Date(d.progress.lastStudyTime).toISOString().slice(0,16) : ''
+        showEditDialog.value = true
+      } else {
+        alert('无法加载进度数据')
+      }
+    } else {
+      alert(res.msg || '加载失败')
+    }
+  } catch (e: any) {
+    alert(e.message || '加载失败')
+  }
+}
+
+// 保存编辑
+const handleEditSave = async () => {
+  if (!editForm.id) return alert('记录ID为空')
+  if (editForm.progressPercent != null && (editForm.progressPercent < 0 || editForm.progressPercent > 100)) return alert('进度百分比应在0到100之间')
+  if (editForm.completedCount != null && editForm.totalCount != null && editForm.completedCount > editForm.totalCount) return alert('已完成数不能大于总数')
+  savingEdit.value = true
+  try {
+    const payload: any = {
+      id: editForm.id,
+      progressPercent: editForm.progressPercent,
+      completedCount: editForm.completedCount,
+      totalCount: editForm.totalCount,
+      status: editForm.status,
+      lastStudyTime: editForm.lastStudyTime ? new Date(editForm.lastStudyTime).toISOString() : undefined
+    }
+    const res = await updateProgress(payload)
+    if (res.code === 0 || res.code === 200) {
+      showEditDialog.value = false
+      await loadData()
+    } else {
+      alert(res.msg || '保存失败')
+    }
+  } catch (e: any) {
+    alert(e.message || '保存失败')
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+// 删除记录
+const removeItem = async (item: TrainingProgress) => {
+  if (!item.id) return alert('记录ID不存在')
+  if (!confirm('确认删除此学习进度记录？')) return
+  try {
+    const res = await deleteProgress(String(item.id))
+    if (res.code === 0 || res.code === 200) {
+      await loadData()
+    } else {
+      alert(res.msg || '删除失败')
+    }
+  } catch (e: any) {
+    alert(e.message || '删除失败')
+  }
 }
 
 const exportReport = () => {
@@ -561,23 +695,29 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 .btn {
-  padding: 6px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--border-color);
   background: white;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 12px;
-  transition: all 0.3s;
+  font-size: 13px;
+  transition: all 0.18s ease-in-out;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.02), inset 0 0 0 rgba(0,0,0,0);
 }
 .btn.primary {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
+  background: linear-gradient(90deg, var(--primary-color) 0%, #66b1ff 100%);
+  border-color: transparent;
   color: #fff;
+  box-shadow: 0 6px 18px rgba(102,177,255,0.12);
 }
-.btn.primary:hover { filter: brightness(1.05); color: #fff; }
-.btn:hover {
+.btn.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(102,177,255,0.16);
+}
+.btn:hover:not(.primary):not(:disabled) {
   border-color: var(--primary-color);
   color: var(--primary-color);
+  transform: translateY(-1px);
 }
 .empty-row {
   padding: 24px;
@@ -757,9 +897,35 @@ onMounted(async () => {
   padding: 10px 20px;
   border: 1px solid var(--border-color);
   background: white;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
+  transition: all 0.18s;
+  box-shadow: none;
+}
+
+.btn-confirm {
+  padding: 10px 20px;
+  background: linear-gradient(90deg, var(--primary-color) 0%, #66b1ff 100%);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 6px 18px rgba(102,177,255,0.12);
+}
+.btn-confirm:disabled, .btn-cancel:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn.danger {
+  background: white;
+  border: 1px solid var(--danger-color, #f56c6c);
+  color: var(--danger-color, #f56c6c);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--danger-color, #f56c6c);
+  color: #fff;
+  border-color: transparent;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 980px) {
