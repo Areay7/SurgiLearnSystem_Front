@@ -4,8 +4,11 @@
       <h1 class="page-title">反馈评价</h1>
       <div class="header-actions">
         <div class="action-buttons">
+          <button class="btn-action" @click="handlePrintAll">打印全部</button>
+          <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
           <button class="btn-action" @click="handleExport">导出Excel</button>
         </div>
+        <button class="btn-action" v-if="selectedIds.length > 0" @click="restoreSelection">还原</button>
         <button class="btn-primary" @click="openSubmitDialog">提交反馈</button>
       </div>
     </div>
@@ -198,6 +201,23 @@ const total = ref(0)
 const feedbacks = ref<UserFeedback[]>([])
 const loading = ref(false)
 const selectedIds = ref<number[]>([])
+
+// 打印 / 还原
+const handlePrintAll = () => {
+  window.print()
+}
+
+const handlePrintSelected = () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的反馈')
+    return
+  }
+  alert(`准备打印 ${selectedIds.value.length} 条反馈`)
+}
+
+const restoreSelection = () => {
+  selectedIds.value = []
+}
 
 const showSubmitDialog = ref(false)
 const showReplyDialog = ref(false)

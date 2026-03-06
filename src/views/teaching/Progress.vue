@@ -2,7 +2,10 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">学习进度跟踪</h1>
-      <button class="btn-primary" @click="exportReport" :disabled="loading">导出报表</button>
+      <div class="header-actions">
+        <button class="btn-action" @click="handlePrintSelected" v-if="selectedIds.length > 0">打印勾选</button>
+        <button class="btn-primary" @click="exportReport" :disabled="loading">导出报表</button>
+      </div>
     </div>
 
     <div class="filters">
@@ -92,6 +95,13 @@
       <!-- 桌面端：表格模式 -->
       <div v-else class="table">
         <div class="tr th">
+          <div class="td checkbox-col">
+            <input 
+              type="checkbox" 
+              @change="handleSelectAll"
+              :checked="selectedIds.length === progressList.length && progressList.length > 0"
+            />
+          </div>
           <div class="td">学员</div>
           <div class="td">培训</div>
           <div class="td">完成进度</div>
@@ -101,6 +111,9 @@
           <div class="td actions">操作</div>
         </div>
         <div class="tr" v-for="item in progressList" :key="item.id">
+          <div class="td checkbox-col">
+            <input type="checkbox" :value="item.id" v-model="selectedIds" />
+          </div>
           <div class="td name">
             <div class="title">{{ item.studentName || `学员ID: ${item.studentId}` }}</div>
             <div class="sub" v-if="item.studentId">ID: {{ item.studentId }}</div>
@@ -300,6 +313,7 @@ const loading = ref(false)
 const progressList = ref<TrainingProgress[]>([])
 const trainingList = ref<Training[]>([])
 const trainingMap = ref<Record<number, Training>>({})
+const selectedIds = ref<number[]>([])
 const statistics = ref({
   avgProgressPercent: 0,
   completedRate: 0,
@@ -405,6 +419,80 @@ const nextPage = () => {
     currentPage.value++
     loadData()
   }
+}
+
+const handleSelectAll = (e: Event) => {
+  const checked = (e.target as HTMLInputElement).checked
+  selectedIds.value = checked ? progressList.value.map(p => p.id!).filter(Boolean) : []
+}
+
+const handlePrintSelected = () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的进度记录')
+    return
+  }
+  const selectedProgress = progressList.value.filter(p => selectedIds.value.includes(p.id!))
+  printProgress(selectedProgress)
+}
+
+const printProgress = (progressList: TrainingProgress[]) => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  const html = `
+    <html>
+    <head>
+      <title>学习进度报告</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        h1 { text-align: center; }
+        .progress-bar { width: 100px; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; display: inline-block; }
+        .progress-fill { height: 100%; background: #4CAF50; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head>
+    <body>
+      <h1>学习进度报告</h1>
+      <p>打印时间: ${new Date().toLocaleString('zh-CN')}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>学员</th>
+            <th>培训</th>
+            <th>完成进度</th>
+            <th>完成情况</th>
+            <th>状态</th>
+            <th>最近学习</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${progressList.map(p => `
+            <tr>
+              <td>${p.studentName || `学员ID: ${p.studentId}`}</td>
+              <td>${trainingMap.value[p.trainingId!]?.trainingName || `培训ID: ${p.trainingId}`}</td>
+              <td>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width: ${p.progressPercent || 0}%"></div>
+                </div>
+                ${p.progressPercent || 0}%
+              </td>
+              <td>${p.completedCount || 0}/${p.totalCount || 0}</td>
+              <td>${p.status || '学习中'}</td>
+              <td>${formatDateTime(p.lastStudyTime)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.print()
 }
 
 const viewDetail = async (item: TrainingProgress) => {

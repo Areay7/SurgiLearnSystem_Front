@@ -3,6 +3,7 @@
     <div class="page-header">
       <h1 class="page-title">考试记录</h1>
       <div class="header-actions">
+        <button class="btn" @click="handlePrintSelected" v-if="selectedIds.length > 0">打印勾选</button>
         <button class="btn" @click="goBack">返回考试系统</button>
       </div>
     </div>
@@ -47,6 +48,13 @@
       <table class="data-table">
         <thead>
           <tr>
+            <th width="50">
+              <input 
+                type="checkbox" 
+                @change="handleSelectAll"
+                :checked="selectedIds.length === records.length && records.length > 0"
+              />
+            </th>
             <th width="60">序号</th>
             <th width="200">考试名称</th>
             <th width="120">学员姓名</th>
@@ -61,9 +69,12 @@
         </thead>
         <tbody>
           <tr v-if="records.length === 0">
-            <td colspan="10" class="empty-state">暂无考试记录</td>
+            <td colspan="11" class="empty-state">暂无考试记录</td>
           </tr>
           <tr v-for="(row, index) in records" :key="row.id || index" class="table-row">
+            <td>
+              <input type="checkbox" :value="row.id" v-model="selectedIds" />
+            </td>
             <td>{{ (currentPage - 1) * pageSize + index + 1 }}</td>
             <td>{{ row.examName || '-' }}</td>
             <td>{{ row.studentName || '-' }}</td>
@@ -105,6 +116,7 @@ const router = useRouter()
 const loading = ref(false)
 const records = ref<ExamResult[]>([])
 const examOptions = ref<Exam[]>([])
+const selectedIds = ref<number[]>([])
 
 const currentPage = ref(1)
 const pageSize = ref(15)
@@ -173,7 +185,80 @@ const nextPage = () => {
     loadData()
   }
 }
+const handleSelectAll = (e: Event) => {
+  const checked = (e.target as HTMLInputElement).checked
+  selectedIds.value = checked ? records.value.map(r => r.id!).filter(Boolean) : []
+}
 
+const handlePrintSelected = () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的记录')
+    return
+  }
+  const selectedRecords = records.value.filter(r => selectedIds.value.includes(r.id!))
+  printExamRecords(selectedRecords)
+}
+
+const printExamRecords = (records: ExamResult[]) => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  const html = `
+    <html>
+    <head>
+      <title>考试记录</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        h1 { text-align: center; }
+        .pass { color: green; }
+        .fail { color: red; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head>
+    <body>
+      <h1>考试记录列表</h1>
+      <p>打印时间: ${new Date().toLocaleString('zh-CN')}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>考试名称</th>
+            <th>学员姓名</th>
+            <th>学员手机</th>
+            <th>总分</th>
+            <th>得分</th>
+            <th>及格分</th>
+            <th>状态</th>
+            <th>用时(分钟)</th>
+            <th>提交时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${records.map(r => `
+            <tr>
+              <td>${r.examName || '-'}</td>
+              <td>${r.studentName || '-'}</td>
+              <td>${r.studentId || '-'}</td>
+              <td>${r.totalScore || '-'}</td>
+              <td class="${(r.obtainedScore || 0) >= (r.passScore || 0) ? 'pass' : 'fail'}">${r.obtainedScore || '-'}</td>
+              <td>${r.passScore || '-'}</td>
+              <td>${r.status || '-'}</td>
+              <td>${r.duration ?? '-'}</td>
+              <td>${formatDateTime(r.submitTime)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.print()
+}
 const goBack = () => router.push('/exam')
 
 const formatDateTime = (s?: string) => {

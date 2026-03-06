@@ -4,6 +4,7 @@
       <h1 class="page-title">学习资料管理</h1>
       <div class="header-actions">
         <button class="btn-primary" @click="openAddDialog">上传资料</button>
+        <button class="btn-action" @click="handlePrintSelected" v-if="selectedIds.length > 0">打印勾选</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
     </div>
@@ -287,6 +288,24 @@ const handleSelectAll = (e: Event) => {
   selectedIds.value = checked ? materials.value.map(m => m.id!).filter(Boolean) : []
 }
 
+// 打印与还原
+const handlePrintAll = () => {
+  window.print()
+}
+
+const handlePrintSelected = () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的资料')
+    return
+  }
+  const selectedMaterials = materials.value.filter(m => selectedIds.value.includes(m.id!))
+  printMaterials(selectedMaterials)
+}
+
+const restoreSelection = () => {
+  selectedIds.value = []
+}
+
 const openAddDialog = () => {
   dialogMode.value = 'add'
   Object.assign(form, {
@@ -538,6 +557,61 @@ const formatSize = (bytes?: number) => {
     i++
   }
   return `${size.toFixed(1)} ${units[i]}`
+}
+
+const printMaterials = (materials: LearningMaterial[]) => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  const html = `
+    <html>
+    <head>
+      <title>学习资料列表</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        h1 { text-align: center; }
+        @media print { body { margin: 0; } }
+      </style>
+    </head>
+    <body>
+      <h1>学习资料列表</h1>
+      <p>打印时间: ${new Date().toLocaleString('zh-CN')}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>标题</th>
+            <th>分类</th>
+            <th>标签</th>
+            <th>文件类型</th>
+            <th>文件大小</th>
+            <th>状态</th>
+            <th>上传时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${materials.map(m => `
+            <tr>
+              <td>${m.title || '-'}</td>
+              <td>${m.category || '-'}</td>
+              <td>${formatTags(m.tags)}</td>
+              <td>${m.fileType || '-'}</td>
+              <td>${formatSize(m.fileSize)}</td>
+              <td>${m.status || '-'}</td>
+              <td>${formatDateTime(m.createTime)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.print()
 }
 
 onMounted(() => {

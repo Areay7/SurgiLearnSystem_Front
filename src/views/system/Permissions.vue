@@ -107,6 +107,9 @@
               <button class="btn-reset" @click="handleReset">重置</button>
               <button class="btn-primary" @click="openAddUserPerm(false)">单个添加</button>
               <button class="btn-primary btn-outline" @click="openAddUserPerm(true)">批量添加</button>
+              <button class="btn-action" @click="handlePrintAll">打印全部</button>
+              <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
+              <button class="btn-action" v-if="selectedIds.length > 0" @click="restoreSelection">还原</button>
               <button class="btn-danger" @click="handleBatchDelete" :disabled="selectedIds.length === 0">
                 批量删除 ({{ selectedIds.length }})
               </button>

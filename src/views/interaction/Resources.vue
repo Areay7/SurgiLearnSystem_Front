@@ -13,8 +13,9 @@
           <button class="btn-action" @click="handleExportCurrentPage">导出当前页Excel</button>
           <button class="btn-action" @click="handleExportAll">导出Excel</button>
         </div>
-        <button v-if="canUpload" class="btn-primary" @click="openUploadDialog">上传资源</button>
-        <button class="btn-action" @click="handleDelete" v-if="canDelete && selectedResources.length > 0">删除选中</button>
+          <button class="btn-action" v-if="selectedResources.length > 0" @click="restoreSelection">还原</button>
+          <button v-if="canUpload" class="btn-primary" @click="openUploadDialog">上传资源</button>
+          <button class="btn-action" @click="handleDelete" v-if="canDelete && selectedResources.length > 0">删除选中</button>
       </div>
     </div>
     
@@ -793,6 +794,11 @@ const handlePrintSelected = () => {
     return
   }
   alert(`准备打印 ${selectedResources.value.length} 个资源`)
+}
+
+// 还原选择（取消勾选）
+const restoreSelection = () => {
+  selectedResources.value = []
 }
 
 // 导出Excel功能

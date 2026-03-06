@@ -3,6 +3,9 @@
     <div class="page-header">
       <h1 class="page-title">考试系统</h1>
       <div class="header-actions">
+        <button class="btn-action" @click="handlePrintAll">打印全部</button>
+        <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
+        <button class="btn-action" v-if="selectedIds.length > 0" @click="restoreSelection">还原</button>
         <button v-if="canCreate" class="btn-primary" @click="openAddDialog">创建考试</button>
         <button v-if="canManageRecords" class="btn-action" @click="goExamRecords">考试记录</button>
         <button v-if="canDelete && selectedIds.length > 0" class="btn-action" @click="handleDeleteSelected">删除选中</button>
@@ -682,6 +685,23 @@ const handleSelectAll = (e: Event) => {
   } else {
     selectedIds.value = []
   }
+}
+
+// 打印 / 还原
+const handlePrintAll = () => {
+  window.print()
+}
+
+const handlePrintSelected = () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的考试')
+    return
+  }
+  alert(`准备打印 ${selectedIds.value.length} 个考试`)
+}
+
+const restoreSelection = () => {
+  selectedIds.value = []
 }
 
 const loadClassOptions = async () => {

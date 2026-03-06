@@ -3,6 +3,9 @@
     <div class="page-header">
       <h1 class="page-title">视频讲座播放</h1>
       <div class="header-actions">
+        <button class="btn-action" @click="handlePrintAll">打印全部</button>
+        <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
+        <button class="btn-action" v-if="selectedVideoIds.length > 0" @click="restoreSelection">还原</button>
         <button 
           v-if="isAdmin && selectedVideoIds.length > 0" 
           class="btn-danger" 
@@ -467,6 +470,23 @@ const handleSelectAllVideos = () => {
   } else {
     selectedVideoIds.value = videos.value.map(v => v.id!).filter(Boolean)
   }
+}
+
+// 打印 / 还原
+const handlePrintAll = () => {
+  window.print()
+}
+
+const handlePrintSelected = () => {
+  if (selectedVideoIds.value.length === 0) {
+    alert('请先选择要打印的视频')
+    return
+  }
+  alert(`准备打印 ${selectedVideoIds.value.length} 个视频`)
+}
+
+const restoreSelection = () => {
+  selectedVideoIds.value = []
 }
 
 // 切换单个视频选中状态

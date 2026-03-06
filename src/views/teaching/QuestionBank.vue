@@ -6,7 +6,9 @@
         <button class="btn-primary" @click="openAddDialog">新增试题</button>
         <button class="btn-action" @click="handleDownloadTemplate" :disabled="downloading">下载导入模板</button>
         <button class="btn-action" @click="triggerImport" :disabled="importing">批量导入Excel</button>
-        <button class="btn-action" @click="handlePrint" :disabled="loading">打印</button>
+        <button class="btn-action" @click="handlePrintAll" :disabled="loading">打印全部</button>
+        <button class="btn-action" @click="handlePrintSelected" :disabled="loading">打印勾选</button>
+        <button class="btn-action" v-if="selectedIds.length > 0" @click="restoreSelection">还原</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
     </div>
@@ -567,6 +569,58 @@ const handleSelectAll = (e: Event) => {
   }
 }
 
+// 打印题目
+const printQuestions = (questions: QuestionBank[]) => {
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  const html = `
+    <html>
+    <head>
+      <title>题库题目</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .question { margin-bottom: 30px; page-break-inside: avoid; }
+        .question-content { font-weight: bold; margin-bottom: 10px; }
+        .options { margin-left: 20px; }
+        .option { margin: 5px 0; }
+        .answer { color: green; font-weight: bold; margin-top: 10px; }
+        .explanation { color: blue; margin-top: 5px; }
+        .meta { color: gray; font-size: 12px; margin-top: 10px; }
+        @media print { body { margin: 0; } .question { page-break-inside: avoid; } }
+      </style>
+    </head>
+    <body>
+      <h1>题库题目列表</h1>
+      <p>打印时间: ${new Date().toLocaleString('zh-CN')}</p>
+      ${questions.map((q, index) => `
+        <div class="question">
+          <div class="question-content">${index + 1}. ${q.questionContent}</div>
+          <div class="options">
+            ${q.questionType !== '判断' ? `
+              ${q.optionA ? `<div class="option">A. ${q.optionA}</div>` : ''}
+              ${q.optionB ? `<div class="option">B. ${q.optionB}</div>` : ''}
+              ${q.optionC ? `<div class="option">C. ${q.optionC}</div>` : ''}
+              ${q.optionD ? `<div class="option">D. ${q.optionD}</div>` : ''}
+            ` : `
+              <div class="option">A. ${q.optionA}</div>
+              <div class="option">B. ${q.optionB}</div>
+            `}
+          </div>
+          <div class="answer">正确答案: ${q.correctAnswer}</div>
+          ${q.explanation ? `<div class="explanation">解析: ${q.explanation}</div>` : ''}
+          <div class="meta">类型: ${getQuestionTypeName(q.questionType)} | 分类: ${q.category || '-'} | 难度: ${q.difficulty || '-'} | 分值: ${q.score || 0}</div>
+        </div>
+      `).join('')}
+    </body>
+    </html>
+  `
+
+  printWindow.document.write(html)
+  printWindow.document.close()
+  printWindow.print()
+}
+
 // 打开新增对话框
 const openAddDialog = () => {
   dialogMode.value = 'add'
@@ -877,6 +931,24 @@ const handlePrint = async () => {
     console.error('打印失败:', err)
     alert(err.message || '打印失败')
   }
+}
+
+// 包装方法，以便在按钮上区分
+const handlePrintAll = async () => {
+  // 不传任何筛选，handlePrint 会根据 selectedIds 决定打印全部或按条件
+  await handlePrint()
+}
+
+const handlePrintSelected = async () => {
+  if (selectedIds.value.length === 0) {
+    alert('请先选择要打印的试题')
+    return
+  }
+  await handlePrint()
+}
+
+const restoreSelection = () => {
+  selectedIds.value = []
 }
 </script>
 

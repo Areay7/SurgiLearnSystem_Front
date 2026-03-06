@@ -3,6 +3,10 @@
     <div class="page-header">
       <h1 class="page-title">用户管理</h1>
       <div class="header-actions">
+        <!-- 打印与还原按钮，保持在删除之前展示 -->
+        <button class="btn-action" @click="handlePrintAll">打印全部</button>
+        <button class="btn-action" @click="handlePrintSelected">打印勾选</button>
+        <button class="btn-action" v-if="selectedIds.length > 0" @click="restoreSelection">还原</button>
         <button class="btn-primary" @click="openAddDialog">新增用户</button>
         <button class="btn-action" @click="handleDeleteSelected" v-if="selectedIds.length > 0">删除选中</button>
       </div>
@@ -312,7 +316,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { Students } from '@/api/students'
-import { addStudent, deleteStudent, getStudentsList, updateStudent } from '@/api/students'
+import { addStudent, deleteStudent, getStudentsList, updateStudent, printStudents } from '@/api/students'
 import { useAuthStore } from '@/stores/auth'
 import { adminResetPassword } from '@/api/auth'
 
@@ -324,6 +328,37 @@ const saving = ref(false)
 
 const students = ref<Students[]>([])
 const selectedIds = ref<number[]>([])
+
+  // 打印和还原功能 -------------------------------------------------------
+  const handlePrintAll = () => {
+    window.print()
+  }
+
+  const handlePrintSelected = async () => {
+    if (selectedIds.value.length === 0) {
+      alert('请先选择要打印的用户')
+      return
+    }
+    try {
+      const response = await printStudents(selectedIds.value)
+      const blob = new Blob([response], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'selected_students.pdf'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('打印失败:', error)
+      alert('打印失败，请重试')
+    }
+  }
+
+  const restoreSelection = () => {
+    selectedIds.value = []
+  }
 
 const currentPage = ref(1)
 const pageSize = ref(10)

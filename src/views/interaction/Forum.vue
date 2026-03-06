@@ -9,6 +9,7 @@
           <button class="btn-action" @click="handleExportCurrentPage">导出当前页Excel</button>
           <button class="btn-action" @click="handleExportAll">导出Excel</button>
         </div>
+        <button class="btn-action" v-if="selectedTopics.length > 0" @click="restoreSelection">还原</button>
         <button class="btn-primary" @click="openPublishDialog">发布新话题</button>
         <button class="btn-action" @click="handleDelete" v-if="selectedTopics.length > 0">删除选中</button>
       </div>
@@ -911,6 +912,11 @@ const handlePrintSelected = () => {
   }
   alert(`准备打印 ${selectedTopics.value.length} 个话题`)
   // 实际打印逻辑可以在这里实现
+}
+
+// 取消勾选/还原
+const restoreSelection = () => {
+  selectedTopics.value = []
 }
 
 // 导出Excel功能

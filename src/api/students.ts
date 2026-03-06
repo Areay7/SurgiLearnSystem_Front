@@ -123,3 +123,15 @@ export function deleteStudent(ids: string): Promise<ApiResponse> {
     params: { ids }
   })
 }
+
+/**
+ * 批量打印学员记录
+ */
+export function printStudents(ids: number[]): Promise<Blob> {
+  return request({
+    url: '/StudentsController/print',
+    method: 'post',
+    data: { ids },
+    responseType: 'blob'
+  })
+}

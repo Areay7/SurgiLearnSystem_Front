@@ -158,16 +158,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理', requiresAdmin: true }
       },
       {
-        path: 'progress',
-        name: 'Progress',
-        component: () => import('@/views/teaching/Progress.vue'),
-        meta: { title: '学习进度跟踪' }
-      },
-      {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/Profile.vue'),
         meta: { title: '个人主页' }
+      },
+      {
+        path: 'progress',
+        name: 'Progress',
+        component: () => import('@/views/teaching/Progress.vue'),
+        meta: { title: '学习进度跟踪' }
       }
     ]
   }
