@@ -337,7 +337,13 @@
             <div class="form-row">
               <div class="form-group">
                 <label>教师</label>
-                <input type="text" class="form-input" v-model="editForm.teacher" maxlength="100" :disabled="saving" />
+                <select class="form-input" v-model="editForm.teacher" :disabled="saving || instructorLoading">
+                  <option value="">{{ instructorLoading ? '讲师加载中...' : '请选择教师' }}</option>
+                  <option v-for="teacher in instructorOptions" :key="teacher.id || teacher.studentId || teacher.phone" :value="teacher.studentName">
+                    {{ teacher.studentName }}{{ teacher.department ? `（${teacher.department}）` : '' }}
+                  </option>
+                </select>
+                <div v-if="!instructorLoading && instructorOptions.length === 0" class="form-hint">暂无讲师，请先在用户管理中添加用户类型为讲师的用户。</div>
               </div>
               <div class="form-group">
                 <label>出勤</label>
@@ -368,7 +374,10 @@
 
             <div class="form-group">
               <label>已选题目数量：{{ getQuestionCount(editForm.questionIds) }}</label>
-              <div class="form-hint">点击"选择题目"按钮从题库中选择题目</div>
+              <div class="inline-actions">
+                <button type="button" class="btn-small" @click="openSelectQuestionsForForm" :disabled="saving">选择题目</button>
+                <span class="form-hint">总分将按已选题目分值自动汇总。</span>
+              </div>
             </div>
           </div>
         </div>
@@ -537,8 +546,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import type { Exam } from '@/api/exam'
-import { addExam, deleteExam, getExamList, updateExam, getExamDetail } from '@/api/exam'
+import type { Exam, ExamInstructor } from '@/api/exam'
+import { addExam, deleteExam, getExamList, updateExam, getExamDetail, getExamInstructorList } from '@/api/exam'
 import type { QuestionBank } from '@/api/questionBank'
 import { getQuestionBankList } from '@/api/questionBank'
 import { listTeachingClassesForAssign, type TeachingClass } from '@/api/teachingClass'
@@ -609,6 +618,8 @@ const editForm = reactive<Exam & { classIds?: number[] }>({
 
 const classOptions = ref<TeachingClass[]>([])
 const classLoading = ref(false)
+const instructorOptions = ref<ExamInstructor[]>([])
+const instructorLoading = ref(false)
 
 const examDateStr = ref('')
 
@@ -720,6 +731,18 @@ const loadClassOptions = async () => {
   }
 }
 
+const loadInstructorOptions = async () => {
+  instructorLoading.value = true
+  try {
+    const res = await getExamInstructorList()
+    instructorOptions.value = res.data || []
+  } catch {
+    instructorOptions.value = []
+  } finally {
+    instructorLoading.value = false
+  }
+}
+
 // 打开新增对话框
 const openAddDialog = () => {
   dialogMode.value = 'add'
@@ -743,6 +766,7 @@ const openAddDialog = () => {
   })
   examDateStr.value = ''
   loadClassOptions()
+  loadInstructorOptions()
   showDialog.value = true
 }
 
@@ -752,6 +776,7 @@ const openEditDialog = async (row: Exam) => {
   Object.assign(editForm, { ...row, classIds: (row as any).classIds || [] })
   examDateStr.value = row.examDate ? new Date(row.examDate).toISOString().split('T')[0] : ''
   loadClassOptions()
+  loadInstructorOptions()
   try {
     const res = await getExamDetail(row.id!)
     if (res.data) {
@@ -797,6 +822,23 @@ const openSelectQuestionsDialog = (row: Exam) => {
       selectedQuestionIds.value = row.questionIds.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
     }
   }
+  loadQuestions()
+  showSelectQuestionsDialog.value = true
+}
+
+const readQuestionIds = (questionIds?: string) => {
+  if (!questionIds) return []
+  try {
+    const ids = JSON.parse(questionIds)
+    if (Array.isArray(ids)) return ids.map(id => Number(id)).filter(id => !isNaN(id))
+  } catch {
+    // fallback below
+  }
+  return questionIds.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
+}
+
+const openSelectQuestionsForForm = () => {
+  selectedQuestionIds.value = readQuestionIds(editForm.questionIds)
   loadQuestions()
   showSelectQuestionsDialog.value = true
 }
@@ -876,18 +918,21 @@ const confirmSelectQuestions = async () => {
     return
   }
   
+  const questionIdsJson = JSON.stringify(selectedQuestionIds.value)
+  const totalScore = calcSelectedTotalScore()
+
   if (!editForm.id) {
-    alert('考试ID不存在，请先保存考试信息')
+    editForm.questionIds = questionIdsJson
+    editForm.totalScore = totalScore
+    if ((editForm.passScore || 0) > totalScore) {
+      editForm.passScore = totalScore
+    }
     showSelectQuestionsDialog.value = false
     return
   }
-  
+
   saving.value = true
   try {
-    // 将选中的题目ID保存为JSON数组格式
-    const questionIdsJson = JSON.stringify(selectedQuestionIds.value)
-    const totalScore = calcSelectedTotalScore()
-    
     // 立即更新到数据库
     const data = {
       id: editForm.id,
@@ -933,10 +978,6 @@ const handleSave = async () => {
     alert('请输入有效的考试时长')
     return
   }
-  if (!editForm.totalScore || editForm.totalScore <= 0) {
-    alert('请输入有效的总分')
-    return
-  }
   if (editForm.passScore === undefined || editForm.passScore < 0) {
     alert('请输入有效的及格分')
     return
@@ -955,7 +996,7 @@ const handleSave = async () => {
   }
   // 总分由选题自动计算，允许为0（未选题）。如总分>0，则及格分必须<=总分
   const totalScore = editForm.totalScore || 0
-  if (totalScore > 0 && editForm.passScore > totalScore) {
+  if (editForm.passScore > totalScore) {
     alert('及格分不能大于总分')
     return
   }
@@ -1505,6 +1546,13 @@ onMounted(() => {
   color: var(--text-secondary);
   font-style: italic;
   margin-top: 4px;
+}
+
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .question-selector {

@@ -26,6 +26,14 @@ export interface Exam {
   classIds?: number[]
 }
 
+export interface ExamInstructor {
+  id?: number
+  studentId?: number
+  studentName?: string
+  phone?: string
+  department?: string
+}
+
 // 分页参数
 export interface ExamListParams {
   page?: number
@@ -120,5 +128,15 @@ export function deleteExam(ids: string): Promise<ApiResponse> {
     url: '/ExamController/remove',
     method: 'delete',
     params: { ids }
+  })
+}
+
+/**
+ * 获取创建/编辑考试可选教师列表
+ */
+export function getExamInstructorList(): Promise<ApiResponse<ExamInstructor[]>> {
+  return request({
+    url: '/ExamController/instructors',
+    method: 'get'
   })
 }
