@@ -30,6 +30,7 @@
           <div>
             <div class="title">{{ c.courseName }}</div>
             <div class="sub">讲师：{{ c.instructorName || '-' }} · 地点：{{ c.classroom || '-' }}</div>
+            <div class="sub">类型：{{ c.courseType || '-' }} · 班级：{{ c.className || '-' }}</div>
           </div>
           <span class="badge" :class="badgeClass((c.status || '未开始') as any)">{{ c.status || '未开始' }}</span>
         </div>
@@ -45,6 +46,18 @@
           <div class="meta-item">
             <div class="k">状态</div>
             <div class="v">{{ c.status || '-' }}</div>
+          </div>
+          <div class="meta-item">
+            <div class="k">学生上限</div>
+            <div class="v">{{ c.maxStudents ?? '-' }}</div>
+          </div>
+          <div class="meta-item">
+            <div class="k">是否必修</div>
+            <div class="v">{{ c.required === 1 ? '必修' : '选修' }}</div>
+          </div>
+          <div class="meta-item">
+            <div class="k">上课班级</div>
+            <div class="v">{{ c.className || '-' }}</div>
           </div>
         </div>
         <div class="actions">
@@ -74,8 +87,29 @@
               <input class="form-input" v-model="form.instructorName" :disabled="dialogMode==='view'" />
             </div>
             <div class="form-group">
+              <label>课程类型</label>
+              <input class="form-input" v-model="form.courseType" :disabled="dialogMode==='view'" />
+            </div>
+            <div class="form-group">
               <label>地点</label>
               <input class="form-input" v-model="form.classroom" :disabled="dialogMode==='view'" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>学生上限</label>
+                <input class="form-input" type="number" min="0" v-model.number="form.maxStudents" :disabled="dialogMode==='view'" />
+              </div>
+              <div class="form-group">
+                <label>是否必修</label>
+                <select class="form-input" v-model.number="form.required" :disabled="dialogMode==='view'">
+                  <option :value="1">必修</option>
+                  <option :value="0">选修</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>上课班级</label>
+                <input class="form-input" v-model="form.className" :disabled="dialogMode==='view'" />
+              </div>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -141,7 +175,7 @@ const filterStatus = ref('')
 
 const showDialog = ref(false)
 const dialogMode = ref<'add'|'edit'|'view'>('view')
-const form = ref<ScheduleItem>({ status: '未开始' })
+const form = ref<ScheduleItem>({ status: '未开始', required: 0, maxStudents: 0 })
 
 function badgeClass(status: CourseStatus) {
   if (status === '进行中') return 'warn'
@@ -197,7 +231,7 @@ onUnmounted(() => {
 
 const openAdd = () => {
   dialogMode.value = 'add'
-  form.value = { status: '未开始' }
+  form.value = { status: '未开始', required: 0, maxStudents: 0 }
   showDialog.value = true
 }
 const openEdit = (c: ScheduleItem) => {
@@ -216,6 +250,7 @@ const save = async () => {
   if (!form.value.courseName?.trim()) return alert('请输入课程名称')
   if (!form.value.instructorName?.trim()) return alert('请输入讲师姓名')
   if (!form.value.scheduleDate) return alert('请选择日期')
+  if (form.value.maxStudents !== undefined && form.value.maxStudents < 0) return alert('学生上限不能为负数')
   saving.value = true
   try {
     const res = dialogMode.value === 'add' ? await addSchedule(form.value) : await updateSchedule(form.value)

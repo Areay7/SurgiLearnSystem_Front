@@ -95,6 +95,7 @@ const menuSections = ref([
       { path: '/certificate', icon: '📜', label: '证书颁发', show: true },
       { path: '/mobile', icon: '📱', label: '移动访问支持', show: true },
       { path: '/settings', icon: '⚙️', label: '系统设置', show: true },
+      { path: '/system-settings-options', icon: '🧩', label: '系统设置选项', show: true },
       { path: '/permissions', icon: '👥', label: '用户权限管理', show: true },
       { path: '/backup', icon: '💾', label: '数据备份', show: true }
     ]
@@ -114,8 +115,8 @@ const menuSections = ref([
       { path: '/question-bank', icon: '📝', label: '在线题库', show: true },
       { path: '/exam', icon: '📊', label: '考试系统', show: true },
       { path: '/exam-records', icon: '📋', label: '考试记录', show: true },
-      { path: '/students', icon: '👨‍🎓', label: '用户管理', show: true },
-      { path: '/progress', icon: '📈', label: '学习进度跟踪', show: true }
+      { path: '/progress', icon: '📈', label: '学习进度跟踪', show: true },
+      { path: '/students', icon: '👨‍🎓', label: '用户管理', show: true }
     ]
   }
 ])
@@ -131,7 +132,7 @@ function updateItemVisibility() {
     if (s.id === 'system') s.showSection = admin
     s.items.forEach(i => {
       if (i.path === '/my-certificates') i.show = !admin
-      else if (['/certificate', '/mobile', '/settings', '/permissions', '/backup'].includes(i.path)) i.show = admin
+      else if (['/certificate', '/mobile', '/settings', '/system-settings-options', '/permissions', '/backup'].includes(i.path)) i.show = admin
       else if (i.path === '/teaching-class' || i.path === '/students') i.show = admin
       else if (i.path === '/exam-records') i.show = [1, 2, 3].includes(authStore.userType || 0)
       else i.show = true

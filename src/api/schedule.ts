@@ -13,6 +13,8 @@ export interface ScheduleItem {
   instructorName?: string
   maxStudents?: number
   enrolledStudents?: number
+  required?: number
+  className?: string
   status?: string
   description?: string
   createTime?: string

@@ -175,7 +175,7 @@
           </thead>
           <tbody>
             <tr v-if="exams.length === 0">
-              <td colspan="13" class="empty-state">
+              <td colspan="17" class="empty-state">
                 <p>暂无数据</p>
               </td>
             </tr>
@@ -193,11 +193,14 @@
               <td>{{ row.examId || row.id || '-' }}</td>
               <td class="exam-name">{{ row.examName || '-' }}</td>
               <td>{{ row.examType || '-' }}</td>
+              <td>{{ row.teacher || '-' }}</td>
               <td>
                 <div>{{ formatDate(row.examDate) }}</div>
                 <div class="time-info">{{ row.startTime || '' }} - {{ row.endTime || '' }}</div>
               </td>
+              <td>{{ row.location || '-' }}</td>
               <td>{{ row.duration || 0 }}</td>
+              <td>{{ row.attendance ?? '-' }}</td>
               <td>{{ formatScore(row.totalScore) }}</td>
               <td>{{ formatScore(row.passScore) }}</td>
               <td>{{ getQuestionCount(row.questionIds) }}</td>
@@ -206,6 +209,7 @@
                   {{ row.status || '未开始' }}
                 </span>
               </td>
+              <td>{{ row.remark || '-' }}</td>
               <td>{{ formatDateTime(row.createTime) }}</td>
             </tr>
           </tbody>
